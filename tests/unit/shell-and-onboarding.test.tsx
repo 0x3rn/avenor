@@ -159,4 +159,68 @@ describe("THE-116: Responsive Application Shell, Onboarding Flow, and Projects D
     fireEvent.click(screen.getByRole("tab", { name: /Archived \(1\)/i }));
     expect(screen.getByTestId("project-card-legacy-docs-portal")).toBeInTheDocument();
   });
+
+  it("renders uplifted 17-section HomePage with interactive command tabs, pricing toggle, and zero raw SQL enums", async () => {
+    const { default: HomePage } = await import("@/app/page");
+    const { container } = render(<HomePage />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: /Every signal behind every product you run\. Organized by product, not provider\./i,
+      }),
+    ).toBeInTheDocument();
+
+    // Interactive Hero Command Frame tabs switch active tab state
+    expect(screen.getAllByText("48,920").length).toBeGreaterThanOrEqual(1);
+    const spendTab = screen.getByRole("tab", { name: /Cloud Spend/i });
+    fireEvent.click(spendTab);
+    expect(spendTab).toHaveAttribute("aria-selected", "true");
+
+    // Interactive Pricing toggle switches Pro between $15/mo annual and $19/month
+    expect(screen.getByText("$15")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Monthly billing/i }));
+    expect(screen.getByText("$19")).toBeInTheDocument();
+
+    // Verify no raw SQL enum tuple strings leak into public marketing copy
+    expect(container.textContent).not.toContain("OWNER, ADMIN, ANALYST, VIEWER");
+  });
+
+  it("renders uplifted LoginPage, SignupPage, ForgotPasswordPage, VerifyEmailPage, and NotFound", async () => {
+    const { default: LoginPage } = await import("@/app/(auth)/login/page");
+    const { default: SignupPage } = await import("@/app/(auth)/signup/page");
+    const { default: ForgotPasswordPage } = await import("@/app/(auth)/forgot-password/page");
+    const { default: VerifyEmailPage } = await import("@/app/(auth)/verify-email/page");
+    const { default: NotFound } = await import("@/app/not-found");
+
+    const { unmount: unmountLogin } = render(<LoginPage />);
+    expect(screen.getByRole("heading", { name: "Sign in to Avenor" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Your entire product portfolio, synchronized and waiting."),
+    ).toBeInTheDocument();
+    unmountLogin();
+
+    const { unmount: unmountSignup } = render(<SignupPage />);
+    expect(
+      screen.getByRole("heading", { name: "Create your Avenor workspace" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Create workspace & start 14-day Pro preview/i }),
+    ).toBeInTheDocument();
+    unmountSignup();
+
+    const { unmount: unmountForgot } = render(<ForgotPasswordPage />);
+    expect(screen.getByRole("heading", { name: "Reset your password" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Send password reset link/i })).toBeInTheDocument();
+    unmountForgot();
+
+    const { unmount: unmountVerify } = render(<VerifyEmailPage />);
+    expect(screen.getByRole("heading", { name: "Verify your email address" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirm email address/i })).toBeInTheDocument();
+    unmountVerify();
+
+    render(<NotFound />);
+    expect(
+      screen.getByRole("heading", { name: "This route isn’t mapped in Avenor." }),
+    ).toBeInTheDocument();
+  });
 });

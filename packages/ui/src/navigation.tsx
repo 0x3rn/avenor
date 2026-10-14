@@ -6,46 +6,63 @@ import { cn } from "./utils";
 export function SignalAtlasLogo({
   className,
   showWordmark = true,
+  showTag = false,
   tone = "light",
 }: {
   className?: string;
   showWordmark?: boolean;
+  showTag?: boolean;
   tone?: "light" | "dark";
 }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5 select-none", className)}>
       <span
         aria-hidden="true"
-        className="h-8 w-8 rounded-[10px] bg-[#5157D9] flex items-center justify-center shadow-xs shrink-0"
+        className={cn(
+          "h-7 w-7 rounded-md flex items-center justify-center shadow-xs shrink-0",
+          tone === "dark" ? "bg-[#19243B] border border-[#263554]" : "bg-[#17243A]",
+        )}
       >
         <svg
-          width="18"
-          height="18"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           aria-hidden="true"
         >
-          <circle cx="12" cy="12" r="8.5" stroke="#FFFFFF" strokeWidth="1.8" strokeOpacity="0.85" />
+          <circle cx="12" cy="12" r="8.5" stroke="#FFFFFF" strokeWidth="1.75" strokeOpacity="0.9" />
           <path
             d="M12 3.5V20.5M3.5 12H20.5"
-            stroke="#ECEEFF"
+            stroke="#CBD5E1"
             strokeWidth="1.5"
             strokeLinecap="round"
-            strokeOpacity="0.6"
+            strokeOpacity="0.65"
           />
-          <circle cx="12" cy="12" r="3" fill="#FFFFFF" />
-          <circle cx="17.5" cy="7.5" r="2" fill="#168E99" stroke="#FFFFFF" strokeWidth="1.2" />
+          <polygon points="12,7 15.5,12 12,17 8.5,12" fill="#FFFFFF" />
+          <circle cx="17.5" cy="6.5" r="2.2" fill="#168E99" stroke="#FFFFFF" strokeWidth="1.2" />
         </svg>
       </span>
       {showWordmark ? (
         <span
           className={cn(
-            "text-[18px] font-semibold tracking-[-0.025em]",
-            tone === "dark" ? "text-[#F7F9FE]" : "text-[#17243A]",
+            "text-[17px] font-semibold tracking-tight",
+            tone === "dark" ? "text-[#F8FAFC]" : "text-[#17243A]",
           )}
         >
           Avenor
+        </span>
+      ) : null}
+      {showTag ? (
+        <span
+          className={cn(
+            "text-[11px] font-mono font-medium uppercase tracking-wider px-2 py-0.5 rounded border",
+            tone === "dark"
+              ? "bg-[#19243B] text-[#B8C5DC] border-[#263554]"
+              : "bg-[#F0F4FA] text-[#30415D] border-[#DFE6F0]",
+          )}
+        >
+          SIGNAL ATLAS
         </span>
       ) : null}
     </span>

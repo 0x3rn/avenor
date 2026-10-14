@@ -24,30 +24,39 @@ test.describe("Milestone 01 — Signal Atlas E2E Journey & Multi-Viewport Verifi
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
-        name: /A clearer view of every digital product you run/i,
+        name: /Every signal behind every product you run\. Organized by product, not provider\./i,
       }),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", {
-        name: /Organization → Workspace → Logical Project → Environment/i,
+        name: /Think in products and environments—not in disconnected vendor accounts\./i,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: /Architecturally read-only\. Zero write paths to your infrastructure\./i,
       }),
     ).toBeVisible();
 
-    // 3. Verify Forgot Password & Verify Email screens render honestly
+    // 3. Verify Forgot Password, Verify Email, and /register -> /signup redirect
     await page.goto("/forgot-password");
     await expect(page.getByRole("heading", { name: /Reset your password/i })).toBeVisible();
 
     await page.goto("/verify-email");
     await expect(page.getByRole("heading", { name: /Verify your email/i })).toBeVisible();
 
+    await page.goto("/register");
+    await expect(page).toHaveURL(/\/signup$/);
+
     // 4. Sign up and provision Organization + Workspace + OWNER membership
-    await page.goto("/signup");
     await page.locator("#signup-name").fill("Elena Vance");
     await page.locator("#signup-email").fill(userEmail);
     await page.locator("#signup-password").fill(userPassword);
     await page.locator("#signup-organization").fill(orgName);
     await page.locator("#signup-workspace").fill(primaryWorkspaceName);
-    await page.getByRole("button", { name: /Create account and workspace/i }).click();
+    await page
+      .getByRole("button", { name: /Create workspace & start 14-day Pro preview/i })
+      .click();
 
     // 5. Guided Onboarding (/onboarding)
     await expect(page).toHaveURL(/\/onboarding$/);

@@ -313,6 +313,10 @@ export default {
     syncWorkerEnvToProcess(env);
     const url = new URL(request.url);
 
+    if (url.pathname === "/register" || url.pathname === "/register/") {
+      return Response.redirect(new URL(`/signup${url.search}`, url.origin).toString(), 308);
+    }
+
     if (url.pathname.startsWith("/api/")) {
       return handleApiRequest(request, url);
     }
@@ -326,6 +330,15 @@ export default {
       if (/^\/projects\/[^/]+\/?$/.test(url.pathname) && url.pathname !== "/projects/new") {
         const fallbackUrl = new URL("/projects/__project_detail__.html", url.origin);
         return env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
+      }
+
+      const notFoundUrl = new URL("/404.html", url.origin);
+      const notFoundAsset = await env.ASSETS.fetch(new Request(notFoundUrl.toString(), request));
+      if (notFoundAsset.ok) {
+        return new Response(notFoundAsset.body, {
+          status: 404,
+          headers: notFoundAsset.headers,
+        });
       }
 
       return assetResponse;

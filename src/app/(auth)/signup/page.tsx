@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, ErrorState, FormField, TextInput } from "@avenor/ui";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
@@ -53,11 +54,13 @@ export default function SignupPage() {
 
   return (
     <AuthShell
-      title="Create your Avenor account"
-      subtitle="Provision your organization and default workspace in a single atomic step."
+      variant="signup"
+      eyebrow="14-DAY PRO PREVIEW · NO CARD REQUIRED"
+      title="Create your Avenor workspace"
+      subtitle="Set up your organization and start mapping read-only analytics, search, cloud cost, and engineering signals to your products in minutes."
       footerSlot={
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span>Already have an account?</span>
+          <span>Already have an Avenor account?</span>
           <Link href="/login" className="font-medium text-[#5157D9] hover:text-[#4047BD]">
             Sign in
           </Link>
@@ -91,7 +94,7 @@ export default function SignupPage() {
             autoComplete="email"
             required
             hasError={Boolean(fieldErrors.email)}
-            placeholder="ada@analytical-engine.org"
+            placeholder="ada@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -101,7 +104,7 @@ export default function SignupPage() {
           id="signup-password"
           label="Password"
           required
-          hint="At least 8 characters. Used to protect your workspace session."
+          hint="Minimum 8 characters. All workspace credentials and tokens are encrypted at rest."
           error={fieldErrors.password?.[0]}
         >
           <TextInput
@@ -121,13 +124,13 @@ export default function SignupPage() {
           <FormField
             id="signup-organization"
             label="Organization name"
-            hint="Optional — defaults to your name."
+            hint="Your top-level company or studio boundary."
           >
             <TextInput
               id="signup-organization"
               name="organizationName"
               type="text"
-              placeholder="Acme Systems"
+              placeholder="Corstack Labs"
               value={organizationName}
               onChange={(e) => setOrganizationName(e.target.value)}
             />
@@ -136,22 +139,35 @@ export default function SignupPage() {
           <FormField
             id="signup-workspace"
             label="Initial workspace name"
-            hint="Optional — defaults to Primary Workspace."
+            hint="Where you’ll organize your first logical products and environments."
           >
             <TextInput
               id="signup-workspace"
               name="workspaceName"
               type="text"
-              placeholder="Core Product"
+              placeholder="Core Products"
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}
             />
           </FormField>
         </div>
 
-        <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full">
-          Create account and workspace
-        </Button>
+        <div className="space-y-2.5 pt-1">
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            rightIcon={<ArrowRight className="h-4 w-4" aria-hidden="true" />}
+            className="w-full"
+          >
+            Create workspace & start 14-day Pro preview
+          </Button>
+          <p className="text-[12px] leading-[18px] text-[#64748B] text-center m-0">
+            No credit card required. Automatically transitions to the Free plan ($0/mo) after 14
+            days unless you upgrade.
+          </p>
+        </div>
       </form>
     </AuthShell>
   );

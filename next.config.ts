@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
     "@avenor/database",
     "@avenor/auth",
   ],
+  async redirects() {
+    return [
+      {
+        source: "/register",
+        destination: "/signup",
+        permanent: true,
+      },
+    ];
+  },
   turbopack: {
     rules: {
       "*.css": {

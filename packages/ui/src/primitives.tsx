@@ -149,9 +149,9 @@ export function Badge({ className, tone = "neutral", icon, children, ...props }:
     >
       {tone === "read-only" && !icon ? (
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      ) : (
-        icon && <span className="shrink-0">{icon}</span>
-      )}
+      ) : icon ? (
+        <span className="shrink-0">{icon}</span>
+      ) : null}
       <span>{children}</span>
     </span>
   );

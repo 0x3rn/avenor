@@ -1,5 +1,5 @@
 import { type AvenorUxState, canRenderNumericValue, UX_STATE_DESCRIPTORS } from "@avenor/types";
-import { AlertCircle, AlertTriangle, Compass, Info, ShieldCheck } from "lucide-react";
+import { AlertCircle, AlertTriangle, Clock3, Compass, Info, ShieldCheck } from "lucide-react";
 import type * as React from "react";
 import { Badge, Card, Skeleton, StatusIndicator } from "./primitives";
 import { cn, formatTabularNumber } from "./utils";
@@ -48,7 +48,11 @@ export function MetricCard({
           <span className="text-[14px] font-semibold text-[#17243A] block">{title}</span>
           <p className="text-[12.5px] leading-[18px] text-[#64748B] m-0">{definition}</p>
         </div>
-        {sourceLabel ? <Badge tone="signal">{sourceLabel}</Badge> : null}
+        {sourceLabel ? (
+          <Badge tone="signal" icon={<Clock3 className="h-3 w-3" aria-hidden="true" />}>
+            {sourceLabel}
+          </Badge>
+        ) : null}
       </div>
 
       {state === "loading_initial" ? (

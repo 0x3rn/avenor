@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, ErrorState, FormField, TextInput } from "@avenor/ui";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
@@ -39,13 +40,15 @@ export default function LoginPage() {
 
   return (
     <AuthShell
+      variant="login"
+      eyebrow="WORKSPACE ACCESS"
       title="Sign in to Avenor"
-      subtitle="Access your organization workspaces, logical projects, and environment signal maps."
+      subtitle="Enter your credentials to open your product portfolio, intelligence domains, and operational alerts."
       footerSlot={
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span>New to Avenor?</span>
           <Link href="/signup" className="font-medium text-[#5157D9] hover:text-[#4047BD]">
-            Create an account and workspace
+            Create a free workspace
           </Link>
         </div>
       }
@@ -68,7 +71,21 @@ export default function LoginPage() {
           />
         </FormField>
 
-        <FormField id="login-password" label="Password" required hint="Minimum 8 characters.">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label htmlFor="login-password" className="text-[13.5px] font-medium text-[#17243A]">
+              Password
+              <span className="text-[#BF4256] ml-1" aria-hidden="true">
+                *
+              </span>
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-[13px] font-medium text-[#5157D9] hover:text-[#4047BD] no-underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <TextInput
             id="login-password"
             name="password"
@@ -79,18 +96,16 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-        </FormField>
-
-        <div className="flex items-center justify-end">
-          <Link
-            href="/forgot-password"
-            className="text-[13px] font-medium text-[#5157D9] hover:text-[#4047BD] no-underline"
-          >
-            Forgot password?
-          </Link>
         </div>
 
-        <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full">
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          loading={loading}
+          rightIcon={<ArrowRight className="h-4 w-4" aria-hidden="true" />}
+          className="w-full"
+        >
           Sign in to workspace
         </Button>
       </form>
