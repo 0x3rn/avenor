@@ -34,11 +34,11 @@ export interface MigrationFileDescriptor {
 
 export function resolveMigrationsDir(): string {
   const candidates = [
-    path.resolve(process.cwd(), "packages/database/migrations"),
-    path.resolve(__dirname, "../migrations"),
+    path.resolve(/*turbopackIgnore: true*/ process.cwd(), "packages/database/migrations"),
+    path.resolve(/*turbopackIgnore: true*/ __dirname, "../migrations"),
   ];
   for (const dir of candidates) {
-    if (fs.existsSync(dir)) {
+    if (fs.existsSync(/*turbopackIgnore: true*/ dir)) {
       return dir;
     }
   }
@@ -50,11 +50,11 @@ export function resolveMigrationsDir(): string {
 
 export function resolvePrismaSchemaPath(): string {
   const candidates = [
-    path.resolve(process.cwd(), "packages/database/prisma/schema.prisma"),
-    path.resolve(__dirname, "../prisma/schema.prisma"),
+    path.resolve(/*turbopackIgnore: true*/ process.cwd(), "packages/database/prisma/schema.prisma"),
+    path.resolve(/*turbopackIgnore: true*/ __dirname, "../prisma/schema.prisma"),
   ];
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (fs.existsSync(/*turbopackIgnore: true*/ candidate)) {
       return candidate;
     }
   }
@@ -67,13 +67,13 @@ export function resolvePrismaSchemaPath(): string {
 export function loadMigrationFiles(): MigrationFileDescriptor[] {
   const migrationsDir = resolveMigrationsDir();
   const files = fs
-    .readdirSync(migrationsDir)
+    .readdirSync(/*turbopackIgnore: true*/ migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort();
 
   return files.map((filename) => {
-    const absolutePath = path.join(migrationsDir, filename);
-    const sql = fs.readFileSync(absolutePath, "utf8");
+    const absolutePath = path.join(/*turbopackIgnore: true*/ migrationsDir, filename);
+    const sql = fs.readFileSync(/*turbopackIgnore: true*/ absolutePath, "utf8");
     const checksum = crypto.createHash("sha256").update(sql).digest("hex");
     const id = filename.replace(/\.sql$/, "");
     return {
@@ -102,7 +102,7 @@ export function validateDatabaseSchemaFiles(): {
 
   const combinedSql = migrations.map((m) => m.sql).join("\n");
   const prismaSchemaPath = resolvePrismaSchemaPath();
-  const prismaContent = fs.readFileSync(prismaSchemaPath, "utf8");
+  const prismaContent = fs.readFileSync(/*turbopackIgnore: true*/ prismaSchemaPath, "utf8");
 
   for (const table of CORE_SCHEMA_TABLES) {
     if (!combinedSql.includes(`CREATE TABLE IF NOT EXISTS ${table}`)) {
