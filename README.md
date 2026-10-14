@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Avenor
+
+**A clearer view of every digital product you run.**
+
+Avenor is a read-only digital product intelligence platform. It connects external observations across analytics, search visibility, cloud billing, database usage, hosting, and reliability back to recognizable logical projects and environments—without ever mutating external provider resources.
+
+---
+
+## Architecture & Monorepo Structure
+
+```text
+avenor/
+├── src/                      # Next.js 16.4 App Router web application
+│   ├── app/                  # Routes, layouts, API endpoints, Signal Atlas tokens
+│   └── components/           # Application shell and domain-specific views
+├── packages/
+│   ├── types/                # @avenor/types — Error taxonomy, 21 UX states, RBAC & domain contracts
+│   ├── config/               # @avenor/config — Zod runtime environment validation & safety guards
+│   ├── ui/                   # @avenor/ui — Signal Atlas design tokens & accessible UI primitives
+│   ├── database/             # @avenor/database — Prisma schema, migrations, tenant & audit helpers
+│   └── auth/                 # @avenor/auth — Better Auth session lifecycle & workspace RBAC
+├── scripts/                  # Operational & database lifecycle CLI scripts
+└── tests/                    # Unit, integration, security, and Playwright E2E suites
+```
+
+## Core Principles
+
+1. **Product-Centered Intelligence:** Every signal maps to `Organization -> Workspace -> LogicalProject -> ProjectEnvironment`.
+2. **Read-Only External Boundary:** Avenor only reads external provider telemetry using least-privilege viewer scopes. It never executes destructive or mutating operations against external infrastructure.
+3. **Metric Integrity (Signal Atlas):** Empty or unconnected sources are never rendered as `0`. Every metric carries its definition, source provenance, and freshness state.
 
 ## Getting Started
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Copy `.env.example` to `.env` and configure your PostgreSQL connection string and secrets.
+2. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+3. Run verification scripts:
+   ```bash
+   pnpm lint
+   pnpm format:check
+   pnpm typecheck
+   pnpm test
+   pnpm build
+   ```

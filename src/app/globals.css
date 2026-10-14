@@ -1,26 +1,118 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Signal Atlas Light Theme Palette (Master Product Design Brief Section 03) */
+  --canvas: #f7f9fc;
+  --surface-primary: #ffffff;
+  --surface-secondary: #f0f4fa;
+  --ink-primary: #17243a;
+  --ink-body: #30415d;
+  --ink-muted: #64748b;
+  --ink-subtle: #7b899f;
+  --border-default: #dfe6f0;
+  --border-strong: #c7d2e3;
+
+  /* Primary Indigo Accent */
+  --accent-primary: #5157d9;
+  --accent-primary-hover: #4047bd;
+  --accent-primary-soft: #eceeff;
+  --accent-primary-border: #ced3ff;
+
+  /* Secondary Signal Teal Accent */
+  --signal-teal: #168e99;
+  --signal-teal-soft: #e7f6f7;
+
+  /* Semantic Status Tokens */
+  --status-success: #147d63;
+  --status-success-soft: #e7f6ef;
+  --status-warning: #a66a16;
+  --status-warning-soft: #fff5e5;
+  --status-critical: #bf4256;
+  --status-critical-soft: #fdecef;
+
+  /* Dark Showcase Surface Tokens */
+  --showcase-bg: #10192b;
+  --showcase-surface: #19243b;
+  --showcase-ink-primary: #f7f9fe;
+  --showcase-ink-secondary: #b8c5dc;
+
+  /* Geometry & Radius Tokens (Section 05) */
+  --radius-control: 10px;
+  --radius-card: 16px;
+  --radius-dialog: 20px;
+  --radius-showcase: 24px;
+  --radius-badge: 7px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--canvas);
+  --color-surface-primary: var(--surface-primary);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-ink-primary: var(--ink-primary);
+  --color-ink-body: var(--ink-body);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-primary-hover: var(--accent-primary-hover);
+  --color-accent-primary-soft: var(--accent-primary-soft);
+  --color-accent-primary-border: var(--accent-primary-border);
+  --color-signal-teal: var(--signal-teal);
+  --color-signal-teal-soft: var(--signal-teal-soft);
+  --color-status-success: var(--status-success);
+  --color-status-success-soft: var(--status-success-soft);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-soft: var(--status-warning-soft);
+  --color-status-critical: var(--status-critical);
+  --color-status-critical-soft: var(--status-critical-soft);
+  --color-showcase-bg: var(--showcase-bg);
+  --color-showcase-surface: var(--showcase-surface);
+  --color-showcase-ink-primary: var(--showcase-ink-primary);
+  --color-showcase-ink-secondary: var(--showcase-ink-secondary);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--canvas);
+  color: var(--ink-body);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--canvas);
+  color: var(--ink-body);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--ink-primary);
+  letter-spacing: -0.02em;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }

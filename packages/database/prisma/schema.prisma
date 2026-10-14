@@ -1,0 +1,265 @@
+// Canonical Prisma schema representation of Avenor's PostgreSQL data model (THE-115)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String                   @id
+  email                 String                   @unique
+  name                  String
+  emailVerified         Boolean                  @default(false) @map("email_verified")
+  image                 String?
+  activeWorkspaceId     String?                  @map("active_workspace_id")
+  onboardingCompletedAt DateTime?                @map("onboarding_completed_at") @db.Timestamptz(6)
+  createdAt             DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  accounts              Account[]
+  sessions              Session[]
+  orgMemberships        OrganizationMembership[]
+  workspaceMemberships  WorkspaceMembership[]
+  auditLogs             AuditLog[]
+
+  @@map("users")
+}
+
+model Account {
+  id           String   @id
+  userId       String   @map("user_id")
+  accountId    String   @map("account_id")
+  providerId   String   @map("provider_id")
+  passwordHash String?  @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId], map: "uq_accounts_provider_account")
+  @@index([userId], map: "idx_accounts_user_id")
+  @@map("accounts")
+}
+
+model Session {
+  id                   String    @id
+  userId               String    @map("user_id")
+  tokenHash            String    @unique @map("token_hash")
+  activeOrganizationId String?   @map("active_organization_id")
+  activeWorkspaceId    String?   @map("active_workspace_id")
+  ipAddress            String?   @map("ip_address")
+  userAgent            String?   @map("user_agent")
+  expiresAt            DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt            DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_sessions_user_id")
+  @@index([expiresAt], map: "idx_sessions_expires_at")
+  @@map("sessions")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  valueHash  String    @map("value_hash")
+  purpose    String    @default("EMAIL_VERIFICATION")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([identifier], map: "idx_verifications_identifier")
+  @@map("verifications")
+}
+
+model Organization {
+  id              String                   @id
+  name            String
+  slug            String                   @unique
+  createdByUserId String?                  @map("created_by_user_id")
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  memberships     OrganizationMembership[]
+  workspaces      Workspace[]
+  auditLogs       AuditLog[]
+
+  @@map("organizations")
+}
+
+model OrganizationMembership {
+  id             String       @id
+  organizationId String       @map("organization_id")
+  userId         String       @map("user_id")
+  role           String
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId], map: "uq_organization_memberships_org_user")
+  @@index([userId], map: "idx_organization_memberships_user_id")
+  @@map("organization_memberships")
+}
+
+model Workspace {
+  id                  String                @id
+  organizationId      String                @map("organization_id")
+  name                String
+  slug                String
+  defaultTimezone     String                @default("UTC") @map("default_timezone")
+  defaultCurrency     String                @default("USD") @map("default_currency")
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships         WorkspaceMembership[]
+  projects            LogicalProject[]
+  providerConnections ProviderConnection[]
+  connectedResources  ConnectedResource[]
+  resourceMappings    ResourceMapping[]
+  auditLogs           AuditLog[]
+
+  @@unique([organizationId, slug], map: "uq_workspaces_org_slug")
+  @@index([organizationId], map: "idx_workspaces_organization_id")
+  @@map("workspaces")
+}
+
+model WorkspaceMembership {
+  id          String    @id
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id")
+  role        String
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId], map: "uq_workspace_memberships_workspace_user")
+  @@index([userId], map: "idx_workspace_memberships_user_id")
+  @@map("workspace_memberships")
+}
+
+model LogicalProject {
+  id               String               @id
+  workspaceId      String               @map("workspace_id")
+  name             String
+  slug             String
+  description      String?
+  primaryDomain    String?              @map("primary_domain")
+  status           String               @default("ACTIVE")
+  createdByUserId  String?              @map("created_by_user_id")
+  archivedAt       DateTime?            @map("archived_at") @db.Timestamptz(6)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  environments     ProjectEnvironment[]
+  resourceMappings ResourceMapping[]
+
+  @@unique([workspaceId, slug], map: "uq_logical_projects_workspace_slug")
+  @@index([workspaceId], map: "idx_logical_projects_workspace_id")
+  @@index([workspaceId, status], map: "idx_logical_projects_status")
+  @@map("logical_projects")
+}
+
+model ProjectEnvironment {
+  id               String            @id
+  projectId        String            @map("project_id")
+  name             String
+  slug             String
+  environmentType  String            @map("environment_type")
+  primaryDomain    String?           @map("primary_domain")
+  isDefault        Boolean           @default(false) @map("is_default")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  project          LogicalProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  resourceMappings ResourceMapping[]
+
+  @@unique([projectId, slug], map: "uq_project_environments_project_slug")
+  @@unique([projectId, environmentType], map: "uq_project_environments_project_type")
+  @@index([projectId], map: "idx_project_environments_project_id")
+  @@map("project_environments")
+}
+
+model ProviderConnection {
+  id                             String              @id
+  workspaceId                    String              @map("workspace_id")
+  providerKey                    String              @map("provider_key")
+  displayName                    String              @map("display_name")
+  status                         String              @default("DISCONNECTED")
+  grantedScopes                  String[]            @default([]) @map("granted_scopes")
+  encryptedCredentialsCiphertext String?             @map("encrypted_credentials_ciphertext")
+  encryptionKeyVersion           Int                 @default(1) @map("encryption_key_version")
+  lastVerifiedAt                 DateTime?           @map("last_verified_at") @db.Timestamptz(6)
+  lastSyncAt                     DateTime?           @map("last_sync_at") @db.Timestamptz(6)
+  createdByUserId                String?             @map("created_by_user_id")
+  createdAt                      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  workspace                      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connectedResources             ConnectedResource[]
+
+  @@index([workspaceId], map: "idx_provider_connections_workspace_id")
+  @@map("provider_connections")
+}
+
+model ConnectedResource {
+  id                   String             @id
+  providerConnectionId String             @map("provider_connection_id")
+  workspaceId          String             @map("workspace_id")
+  externalResourceId   String             @map("external_resource_id")
+  resourceType         String             @map("resource_type")
+  displayName          String             @map("display_name")
+  metadata             Json               @default("{}")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  providerConnection   ProviderConnection @relation(fields: [providerConnectionId], references: [id], onDelete: Cascade)
+  workspace            Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  resourceMappings     ResourceMapping[]
+
+  @@unique([providerConnectionId, externalResourceId], map: "uq_connected_resources_conn_external")
+  @@index([workspaceId], map: "idx_connected_resources_workspace_id")
+  @@map("connected_resources")
+}
+
+model ResourceMapping {
+  id                  String              @id
+  workspaceId         String              @map("workspace_id")
+  projectId           String              @map("project_id")
+  environmentId       String?             @map("environment_id")
+  connectedResourceId String              @map("connected_resource_id")
+  mappingRole         String              @default("PRIMARY") @map("mapping_role")
+  createdByUserId     String?             @map("created_by_user_id")
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  workspace           Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project             LogicalProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment         ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  connectedResource   ConnectedResource   @relation(fields: [connectedResourceId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, connectedResourceId], map: "uq_resource_mappings_project_resource")
+  @@index([projectId], map: "idx_resource_mappings_project_id")
+  @@index([environmentId], map: "idx_resource_mappings_environment_id")
+  @@map("resource_mappings")
+}
+
+model AuditLog {
+  id             String       @id
+  organizationId String       @map("organization_id")
+  workspaceId    String?      @map("workspace_id")
+  actorUserId    String?      @map("actor_user_id")
+  action         String
+  entityType     String       @map("entity_type")
+  entityId       String       @map("entity_id")
+  summary        String
+  metadata       Json         @default("{}")
+  ipAddress      String?      @map("ip_address")
+  userAgent      String?      @map("user_agent")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace      Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  actor          User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)], map: "idx_audit_logs_organization_created")
+  @@index([workspaceId, createdAt(sort: Desc)], map: "idx_audit_logs_workspace_created")
+  @@map("audit_logs")
+}
