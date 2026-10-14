@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { assertServerRuntime } from "@avenor/config";
-import { AppError, ERROR_CODES } from "@avenor/types";
+import { AppError, ERROR_CODES, ProviderAdapterError } from "@avenor/types";
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 
 export type Queryable = Pool | PoolClient;
@@ -145,6 +145,9 @@ export async function withTransaction<T>(
       await client.query("ROLLBACK");
     } catch {
       // Preserve primary transaction error
+    }
+    if (err instanceof ProviderAdapterError) {
+      throw err;
     }
     throw mapDatabaseError(err);
   } finally {
