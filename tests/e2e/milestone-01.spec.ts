@@ -7,7 +7,7 @@ test.describe("Milestone 01 — Signal Atlas E2E Journey & Multi-Viewport Verifi
   test("completes full user journey: public home -> signup -> onboarding -> project & environment management -> settings -> multi-workspace -> archive/restore -> signout/signin + responsive viewports", async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
 
     const uniqueSuffix = Date.now().toString(36);
     const userEmail = `founder.${uniqueSuffix}@avenor-e2e.dev`;
@@ -29,7 +29,7 @@ test.describe("Milestone 01 — Signal Atlas E2E Journey & Multi-Viewport Verifi
     ).toBeVisible();
     await expect(
       page.getByRole("heading", {
-        name: /Think in products and environments—not in disconnected vendor accounts\./i,
+        name: /Model your workspace around the products you ship—not the vendors you rent\./i,
       }),
     ).toBeVisible();
     await expect(

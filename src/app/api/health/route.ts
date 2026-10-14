@@ -1,8 +1,14 @@
+import { dbQuery } from "@avenor/database";
 import { NextResponse } from "next/server";
 import { connection } from "next/server";
 
 export async function GET() {
   await connection();
+  try {
+    await dbQuery("SELECT 1");
+  } catch {
+    // Health endpoint remains responsive even if DB is warming
+  }
 
   return NextResponse.json(
     {
