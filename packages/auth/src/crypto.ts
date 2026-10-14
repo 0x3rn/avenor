@@ -9,7 +9,7 @@ export function hashPassword(password: string): string {
 }
 
 export function verifyPassword(password: string, storedHash: string | null | undefined): boolean {
-  if (!storedHash || !storedHash.startsWith("scrypt$")) {
+  if (!storedHash?.startsWith("scrypt$")) {
     return false;
   }
   const parts = storedHash.split("$");

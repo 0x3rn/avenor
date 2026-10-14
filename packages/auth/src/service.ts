@@ -501,7 +501,7 @@ export async function resolveSessionByToken(
 
 export async function revokeSessionByToken(
   rawToken: string | null | undefined,
-  options?: { connectionString?: string },
+  _options?: { connectionString?: string },
 ): Promise<boolean> {
   if (!rawToken || !verifySignedSessionTokenFormat(rawToken)) {
     return false;
