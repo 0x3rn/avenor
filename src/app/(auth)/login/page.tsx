@@ -2,12 +2,10 @@
 
 import { Button, ErrorState, FormField, TextInput } from "@avenor/ui";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import * as React from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -32,8 +30,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      window.location.assign("/dashboard");
     } catch {
       setErrorMessage("Network error while signing in. Please verify your connection and retry.");
       setLoading(false);

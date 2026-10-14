@@ -2,12 +2,10 @@
 
 import { Button, ErrorState, FormField, TextInput } from "@avenor/ui";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import * as React from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 
 export default function SignupPage() {
-  const router = useRouter();
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -46,8 +44,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/onboarding");
-      router.refresh();
+      window.location.assign("/onboarding");
     } catch {
       setErrorMessage("Network error while creating your account. Please retry.");
       setLoading(false);
