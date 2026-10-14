@@ -1,0 +1,336 @@
+import {
+  authenticateUser,
+  completeUserOnboarding,
+  createLogicalProject,
+  createPasswordResetRequest,
+  createProjectEnvironment,
+  createWorkspaceInOrganization,
+  getLogicalProjectById,
+  getWorkspaceGovernanceDetails,
+  listWorkspaceProjects,
+  registerUserWithDefaultOwnership,
+  resolveSessionByToken,
+  revokeSessionByToken,
+  SESSION_COOKIE_NAME,
+  SESSION_TTL_SECONDS,
+  switchSessionActiveWorkspace,
+  updateLogicalProject,
+  updateProjectEnvironment,
+  updateWorkspaceSettings,
+  verifyEmailToken,
+} from "@avenor/auth";
+import { AppError, ERROR_CODES, toAppError } from "@avenor/types";
+
+export interface CloudflareWorkerEnv {
+  ASSETS?: {
+    fetch(request: Request | string): Promise<Response>;
+  };
+  [key: string]: unknown;
+}
+
+function syncWorkerEnvToProcess(env: CloudflareWorkerEnv): void {
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === "string" && value.length > 0) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function jsonResponse(body: unknown, status = 200, extraHeaders?: HeadersInit): Response {
+  const headers = new Headers(extraHeaders);
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
+function errorResponse(error: unknown): Response {
+  const appErr = toAppError(error);
+  return jsonResponse(appErr.toPublicJson(), appErr.statusCode);
+}
+
+function readCookie(request: Request, name: string): string | undefined {
+  const cookieHeader = request.headers.get("cookie");
+  if (!cookieHeader) {
+    return undefined;
+  }
+  for (const part of cookieHeader.split(";")) {
+    const [rawKey, ...rest] = part.trim().split("=");
+    if (rawKey === name) {
+      return decodeURIComponent(rest.join("="));
+    }
+  }
+  return undefined;
+}
+
+function buildSessionSetCookie(rawToken: string): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}${secure}`;
+}
+
+function buildClearSessionCookie(): string {
+  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+async function getWorkerSession(request: Request) {
+  const rawToken = readCookie(request, SESSION_COOKIE_NAME);
+  return resolveSessionByToken(rawToken);
+}
+
+async function handleApiRequest(request: Request, url: URL): Promise<Response> {
+  const pathname = url.pathname;
+  const method = request.method.toUpperCase();
+
+  if (pathname === "/api/health" && method === "GET") {
+    return jsonResponse({
+      status: "ok",
+      service: "avenor",
+      milestone: "01-foundation",
+      mode: "read-only-intelligence",
+      runtime: "cloudflare-workers",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  try {
+    if (pathname.startsWith("/api/auth/")) {
+      const action = pathname.slice("/api/auth/".length);
+      const ipAddress = request.headers.get("x-forwarded-for") ?? null;
+      const userAgent = request.headers.get("user-agent") ?? null;
+
+      if (action === "session" && method === "GET") {
+        const session = await getWorkerSession(request);
+        if (!session) {
+          return jsonResponse({ authenticated: false, session: null }, 401);
+        }
+        return jsonResponse({ authenticated: true, session }, 200);
+      }
+
+      if (action === "signup" && method === "POST") {
+        const body = await request.json();
+        const result = await registerUserWithDefaultOwnership(body, { ipAddress, userAgent });
+        return jsonResponse(
+          {
+            authenticated: true,
+            session: result.context,
+            verificationToken: result.verificationToken,
+          },
+          201,
+          { "set-cookie": buildSessionSetCookie(result.rawSessionToken) },
+        );
+      }
+
+      if (action === "signin" && method === "POST") {
+        const body = await request.json();
+        const result = await authenticateUser(body, { ipAddress, userAgent });
+        return jsonResponse({ authenticated: true, session: result.context }, 200, {
+          "set-cookie": buildSessionSetCookie(result.rawSessionToken),
+        });
+      }
+
+      if (action === "signout" && method === "POST") {
+        const rawToken = readCookie(request, SESSION_COOKIE_NAME);
+        await revokeSessionByToken(rawToken);
+        return jsonResponse({ authenticated: false }, 200, {
+          "set-cookie": buildClearSessionCookie(),
+        });
+      }
+
+      if (action === "switch-workspace" && method === "POST") {
+        const session = await getWorkerSession(request);
+        if (!session) {
+          throw new AppError({
+            code: ERROR_CODES.UNAUTHENTICATED,
+            message: "Authentication required to switch workspaces.",
+          });
+        }
+        const body = (await request.json()) as { workspaceId?: string };
+        if (!body.workspaceId) {
+          throw new AppError({
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: "workspaceId is required.",
+          });
+        }
+        const activeWorkspace = await switchSessionActiveWorkspace(session, body.workspaceId);
+        return jsonResponse({ ok: true, activeWorkspace }, 200);
+      }
+
+      if (action === "verify-email" && method === "POST") {
+        const body = (await request.json()) as { email?: string; token?: string };
+        if (!body.email || !body.token) {
+          throw new AppError({
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: "Email and verification token are required.",
+          });
+        }
+        const verified = await verifyEmailToken(body.email, body.token);
+        if (!verified) {
+          throw new AppError({
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: "Verification token is invalid or has expired.",
+          });
+        }
+        return jsonResponse({ ok: true, verified: true }, 200);
+      }
+
+      if (action === "forgot-password" && method === "POST") {
+        const body = (await request.json()) as { email?: string };
+        if (!body.email) {
+          throw new AppError({
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: "Email address is required.",
+          });
+        }
+        await createPasswordResetRequest(body.email);
+        return jsonResponse({ ok: true, requested: true }, 200);
+      }
+
+      return jsonResponse(
+        { error: { code: ERROR_CODES.NOT_FOUND, message: `Unknown auth route: ${action}` } },
+        404,
+      );
+    }
+
+    if (pathname === "/api/workspaces") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const details = await getWorkspaceGovernanceDetails(
+          session,
+          session?.activeWorkspace.id ?? "",
+        );
+        return jsonResponse({
+          activeWorkspace: details.workspace,
+          organization: details.organization,
+          workspaces: session?.workspaces ?? [],
+          members: details.members,
+          auditLogs: details.auditLogs,
+        });
+      }
+      if (method === "POST") {
+        const body = await request.json();
+        const created = await createWorkspaceInOrganization(
+          session,
+          session?.activeWorkspace.id ?? "",
+          body,
+        );
+        return jsonResponse({ workspace: created }, 201);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json()) as { workspaceId?: string } & Record<string, unknown>;
+        const targetWorkspaceId = body.workspaceId ?? session?.activeWorkspace.id ?? "";
+        const updated = await updateWorkspaceSettings(session, targetWorkspaceId, body);
+        return jsonResponse({ workspace: updated }, 200);
+      }
+    }
+
+    if (pathname === "/api/projects") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const workspaceId =
+          url.searchParams.get("workspaceId") ?? session?.activeWorkspace.id ?? "";
+        const includeArchived = url.searchParams.get("includeArchived") === "true";
+        const search = url.searchParams.get("search") ?? undefined;
+        const projects = await listWorkspaceProjects(session, workspaceId, {
+          includeArchived,
+          search,
+        });
+        return jsonResponse({ projects }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as { workspaceId?: string } & Record<string, unknown>;
+        const workspaceId = body.workspaceId ?? session?.activeWorkspace.id ?? "";
+        const project = await createLogicalProject(session, workspaceId, body);
+        return jsonResponse({ project }, 201);
+      }
+    }
+
+    const projectEnvMatch = pathname.match(/^\/api\/projects\/([^/]+)\/environments$/);
+    if (projectEnvMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectEnvMatch[1]);
+      if (method === "POST") {
+        const body = await request.json();
+        const environment = await createProjectEnvironment(session, projectId, body, {
+          expectedWorkspaceId: session?.activeWorkspace.id,
+        });
+        return jsonResponse({ environment }, 201);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json()) as { environmentId?: string } & Record<string, unknown>;
+        if (!body.environmentId) {
+          throw new AppError({
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: "environmentId is required.",
+          });
+        }
+        const environment = await updateProjectEnvironment(
+          session,
+          projectId,
+          body.environmentId,
+          body,
+          { expectedWorkspaceId: session?.activeWorkspace.id },
+        );
+        return jsonResponse({ environment }, 200);
+      }
+    }
+
+    const projectDetailMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);
+    if (projectDetailMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectDetailMatch[1]);
+      if (method === "GET") {
+        const project = await getLogicalProjectById(
+          session,
+          projectId,
+          session?.activeWorkspace.id,
+        );
+        return jsonResponse({ project }, 200);
+      }
+      if (method === "PATCH") {
+        const body = await request.json();
+        const project = await updateLogicalProject(session, projectId, body, {
+          expectedWorkspaceId: session?.activeWorkspace.id,
+        });
+        return jsonResponse({ project }, 200);
+      }
+    }
+
+    if (pathname === "/api/onboarding/complete" && method === "POST") {
+      const session = await getWorkerSession(request);
+      const result = await completeUserOnboarding(session, session?.activeWorkspace.id ?? "");
+      return jsonResponse({ ok: true, ...result }, 200);
+    }
+  } catch (error) {
+    return errorResponse(error);
+  }
+
+  return jsonResponse(
+    { error: { code: ERROR_CODES.NOT_FOUND, message: "API route not found." } },
+    404,
+  );
+}
+
+export default {
+  async fetch(request: Request, env: CloudflareWorkerEnv): Promise<Response> {
+    syncWorkerEnvToProcess(env);
+    const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/")) {
+      return handleApiRequest(request, url);
+    }
+
+    if (env.ASSETS) {
+      const assetResponse = await env.ASSETS.fetch(request);
+      if (assetResponse.status !== 404) {
+        return assetResponse;
+      }
+
+      if (/^\/projects\/[^/]+\/?$/.test(url.pathname) && url.pathname !== "/projects/new") {
+        const fallbackUrl = new URL("/projects/__project_detail__.html", url.origin);
+        return env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
+      }
+
+      return assetResponse;
+    }
+
+    return new Response("Avenor Cloudflare Worker is running.", { status: 200 });
+  },
+};

@@ -12,6 +12,8 @@
       "!**/package-lock.json",
       "!**/pnpm-lock.yaml",
       "!**/.next",
+      "!**/.cloudflare",
+      "!**/.wrangler",
       "!**/dist",
       "!**/coverage",
       "!**/playwright-report",

@@ -36,9 +36,18 @@
     "tests/**/*.ts",
     "tests/**/*.tsx",
     "scripts/**/*.ts",
+    "cloudflare/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", ".next", "dist", "playwright-report", "test-results"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    ".cloudflare",
+    ".wrangler",
+    "dist",
+    "playwright-report",
+    "test-results"
+  ]
 }

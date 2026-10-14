@@ -5,7 +5,7 @@
   "packageManager": "pnpm@12.11.2",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && tsx scripts/prepare-cloudflare-assets.ts",
     "start": "next start",
     "lint": "biome lint .",
     "format": "biome format --write .",
