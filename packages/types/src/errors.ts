@@ -36,7 +36,8 @@ export interface PublicErrorPayload {
 const SENSITIVE_PATTERNS = [
   /postgres(?:ql)?:\/\/[^\s"']+/gi,
   /bearer\s+[a-z0-9._~+/-]+=*/gi,
-  /(?:secret|password|token|api[_-]?key)\s*[:=]\s*[^\s,"']+/gi,
+  /(?:access_token|refresh_token|client_secret|code_verifier|authorization_code|raw_secret|ciphertext|secret|password|token|api[_-]?key)\s*["']?\s*[:=]\s*["']?[^\s,"'}]+/gi,
+  /\b(?:ghp|gho|ghu|ghs|ghr|sbp|napi|vcp|sntrys|avn_live|avn_test|ya29)_[a-zA-Z0-9._~-]{8,}\b/g,
 ];
 
 export function redactSensitiveText(input: string): string {

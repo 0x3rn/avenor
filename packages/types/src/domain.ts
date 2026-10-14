@@ -53,10 +53,18 @@ export const PROJECT_STATUSES = ["ACTIVE", "ARCHIVED"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
 export const CONNECTION_HEALTH_STATUSES = [
-  "HEALTHY",
+  "NOT_CONNECTED",
+  "CONNECTING",
   "SYNCING",
+  "HEALTHY",
+  "DEGRADED",
   "STALE",
   "WARNING",
+  "PERMISSION_MISSING",
+  "TOKEN_EXPIRED",
+  "REVOKED",
+  "RATE_LIMITED",
+  "PROVIDER_UNAVAILABLE",
   "FAILED",
   "DISCONNECTED",
 ] as const;
