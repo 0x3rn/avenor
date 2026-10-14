@@ -183,24 +183,86 @@ model ProjectEnvironment {
 }
 
 model ProviderConnection {
-  id                             String              @id
-  workspaceId                    String              @map("workspace_id")
-  providerKey                    String              @map("provider_key")
-  displayName                    String              @map("display_name")
-  status                         String              @default("DISCONNECTED")
-  grantedScopes                  String[]            @default([]) @map("granted_scopes")
-  encryptedCredentialsCiphertext String?             @map("encrypted_credentials_ciphertext")
-  encryptionKeyVersion           Int                 @default(1) @map("encryption_key_version")
-  lastVerifiedAt                 DateTime?           @map("last_verified_at") @db.Timestamptz(6)
-  lastSyncAt                     DateTime?           @map("last_sync_at") @db.Timestamptz(6)
-  createdByUserId                String?             @map("created_by_user_id")
-  createdAt                      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                      DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
-  workspace                      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                             String                    @id
+  workspaceId                    String                    @map("workspace_id")
+  providerKey                    String                    @map("provider_key")
+  displayName                    String                    @map("display_name")
+  authMode                       String                    @default("oauth2") @map("auth_mode")
+  externalAccountId              String?                   @map("external_account_id")
+  externalAccountLabel           String?                   @map("external_account_label")
+  status                         String                    @default("DISCONNECTED")
+  requestedScopes                String[]                  @default([]) @map("requested_scopes")
+  grantedScopes                  String[]                  @default([]) @map("granted_scopes")
+  encryptedCredentialsCiphertext String?                   @map("encrypted_credentials_ciphertext")
+  encryptionKeyVersion           Int                       @default(1) @map("encryption_key_version")
+  lastErrorCode                  String?                   @map("last_error_code")
+  lastErrorSummary               String?                   @map("last_error_summary")
+  metadata                       Json                      @default("{}")
+  lastVerifiedAt                 DateTime?                 @map("last_verified_at") @db.Timestamptz(6)
+  lastSyncAt                     DateTime?                 @map("last_sync_at") @db.Timestamptz(6)
+  disconnectedAt                 DateTime?                 @map("disconnected_at") @db.Timestamptz(6)
+  createdByUserId                String?                   @map("created_by_user_id")
+  createdAt                      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  workspace                      Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   connectedResources             ConnectedResource[]
+  credential                     ProviderCredential?
+  oauthStates                    OAuthAuthorizationState[]
 
   @@index([workspaceId], map: "idx_provider_connections_workspace_id")
   @@map("provider_connections")
+}
+
+model ProviderCredential {
+  id                   String             @id
+  organizationId       String             @map("organization_id")
+  workspaceId          String             @map("workspace_id")
+  providerConnectionId String             @unique(map: "uq_provider_credentials_connection") @map("provider_connection_id")
+  providerKey          String             @map("provider_key")
+  credentialType       String             @map("credential_type")
+  keyId                String             @map("key_id")
+  encryptionVersion    Int                @default(1) @map("encryption_version")
+  algorithm            String             @default("aes-256-gcm")
+  nonceBase64          String             @map("nonce_base64")
+  ciphertextBase64     String             @map("ciphertext_base64")
+  authTagBase64        String             @map("auth_tag_base64")
+  aadHash              String             @map("aad_hash")
+  tokenExpiresAt       DateTime?          @map("token_expires_at") @db.Timestamptz(6)
+  refreshTokenPresent  Boolean            @default(false) @map("refresh_token_present")
+  status               String             @default("ACTIVE")
+  rotatedAt            DateTime?          @map("rotated_at") @db.Timestamptz(6)
+  revokedAt            DateTime?          @map("revoked_at") @db.Timestamptz(6)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  connection           ProviderConnection @relation(fields: [providerConnectionId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId], map: "idx_provider_credentials_workspace_id")
+  @@index([organizationId], map: "idx_provider_credentials_org_id")
+  @@map("provider_credentials")
+}
+
+model OAuthAuthorizationState {
+  id                     String              @id
+  stateTokenHash         String              @unique(map: "uq_oauth_authorization_states_token_hash") @map("state_token_hash")
+  organizationId         String              @map("organization_id")
+  workspaceId            String              @map("workspace_id")
+  userId                 String              @map("user_id")
+  providerKey            String              @map("provider_key")
+  operation              String
+  targetConnectionId     String?             @map("target_connection_id")
+  redirectUri            String              @map("redirect_uri")
+  requestedScopes        String[]            @default([]) @map("requested_scopes")
+  codeVerifierCiphertext String              @map("code_verifier_ciphertext")
+  codeChallenge          String              @map("code_challenge")
+  codeChallengeMethod    String              @default("S256") @map("code_challenge_method")
+  expiresAt              DateTime            @map("expires_at") @db.Timestamptz(6)
+  consumedAt             DateTime?           @map("consumed_at") @db.Timestamptz(6)
+  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  targetConnection       ProviderConnection? @relation(fields: [targetConnectionId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId], map: "idx_oauth_authorization_states_workspace_id")
+  @@index([userId], map: "idx_oauth_authorization_states_user_id")
+  @@map("oauth_authorization_states")
 }
 
 model ConnectedResource {

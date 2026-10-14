@@ -17,6 +17,8 @@ export const CORE_SCHEMA_TABLES = [
   "logical_projects",
   "project_environments",
   "provider_connections",
+  "provider_credentials",
+  "oauth_authorization_states",
   "connected_resources",
   "resource_mappings",
   "audit_logs",
@@ -290,6 +292,8 @@ export async function resetTestDatabaseRecords(options?: {
   const pool = getDatabasePool(options?.connectionString);
   await pool.query(`
     TRUNCATE TABLE
+      oauth_authorization_states,
+      provider_credentials,
       resource_mappings,
       connected_resources,
       provider_connections,
