@@ -1,9 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  transpilePackages: [
+    "@avenor/types",
+    "@avenor/config",
+    "@avenor/ui",
+    "@avenor/database",
+    "@avenor/auth",
+  ],
   turbopack: {
     rules: {
       "*.css": {
