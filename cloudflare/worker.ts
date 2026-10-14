@@ -1,13 +1,20 @@
 import {
   authenticateUser,
+  authorizeWorkspaceAccess,
+  completeOAuthCallback,
   completeUserOnboarding,
   createLogicalProject,
   createPasswordResetRequest,
   createProjectEnvironment,
   createWorkspaceInOrganization,
+  defaultSandboxTokenExchangeHandler,
+  defaultSandboxTokenRefreshHandler,
+  disconnectProviderConnection,
   getLogicalProjectById,
   getWorkspaceGovernanceDetails,
+  initiateOAuthAuthorization,
   listWorkspaceProjects,
+  refreshConnectionOAuthToken,
   registerUserWithDefaultOwnership,
   resolveSessionByToken,
   revokeSessionByToken,
@@ -19,7 +26,16 @@ import {
   updateWorkspaceSettings,
   verifyEmailToken,
 } from "@avenor/auth";
-import { AppError, ERROR_CODES, toAppError } from "@avenor/types";
+import { AppError, ERROR_CODES, type ReadOnlyProviderContext, toAppError } from "@avenor/types";
+import {
+  discoverAndPersistConnectionResources,
+  getWorkspaceConnectionDetail,
+  listWorkspaceConnections,
+  mapResourceToProjectEnvironment,
+  unmapResourceFromProject,
+  validateConnectionHealth,
+} from "../src/lib/connections";
+import { getProviderCatalogEntry, PROVIDER_CATALOG } from "../src/lib/providers";
 
 export interface CloudflareWorkerEnv {
   ASSETS?: {
@@ -297,6 +313,244 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       const session = await getWorkerSession(request);
       const result = await completeUserOnboarding(session, session?.activeWorkspace.id ?? "");
       return jsonResponse({ ok: true, ...result }, 200);
+    }
+
+    if (pathname === "/api/connections" && method === "GET") {
+      const session = await getWorkerSession(request);
+      const workspaceId = url.searchParams.get("workspaceId") ?? session?.activeWorkspace.id ?? "";
+      const [{ connections, canManageConnections }, projects] = await Promise.all([
+        listWorkspaceConnections(session, workspaceId),
+        listWorkspaceProjects(session, workspaceId, { includeArchived: false }),
+      ]);
+      return jsonResponse(
+        {
+          catalog: PROVIDER_CATALOG,
+          connections,
+          projects,
+          canManageConnections,
+        },
+        200,
+      );
+    }
+
+    if (pathname === "/api/connections/oauth/authorize" && method === "POST") {
+      const session = await getWorkerSession(request);
+      const body = (await request.json()) as {
+        workspaceId?: string;
+        providerKey?: string;
+        displayName?: string;
+        requestedScopes?: string[];
+        redirectUri?: string;
+        reconnectConnectionId?: string;
+      };
+      const workspaceId = body.workspaceId ?? session?.activeWorkspace.id ?? "";
+      const providerKey = (body.providerKey ?? "").trim();
+      const catalogEntry = getProviderCatalogEntry(providerKey);
+      const redirectUri = body.redirectUri ?? `${url.origin}/api/connections/oauth/callback`;
+      const requestedScopes =
+        Array.isArray(body.requestedScopes) && body.requestedScopes.length > 0
+          ? body.requestedScopes
+          : [...(catalogEntry?.defaultScopes ?? [])];
+
+      const authorization = await initiateOAuthAuthorization({
+        session,
+        workspaceId,
+        providerKey,
+        authorizeEndpointUrl:
+          catalogEntry?.oauthAuthorizeUrl ?? "/api/connections/oauth/sandbox-authorize",
+        requestedScopes,
+        redirectUri,
+        operation: body.reconnectConnectionId ? "reconsent" : "connect",
+        targetConnectionId: body.reconnectConnectionId,
+      });
+      return jsonResponse({ authorization }, 201);
+    }
+
+    if (pathname === "/api/connections/oauth/callback" && method === "POST") {
+      const session = await getWorkerSession(request);
+      const body = (await request.json()) as {
+        workspaceId?: string;
+        providerKey?: string;
+        displayName?: string;
+        stateToken?: string;
+        rawStateToken?: string;
+        redirectUri?: string;
+        authorizationCode?: string;
+        grantedScopes?: string[];
+        error?: string;
+        errorDescription?: string;
+        externalAccountId?: string;
+        externalAccountLabel?: string;
+      };
+      const workspaceId = body.workspaceId ?? session?.activeWorkspace.id ?? "";
+      const rawStateToken = body.rawStateToken ?? body.stateToken ?? "";
+      const providerKey = body.providerKey ?? "avenor-sandbox";
+      const redirectUri = body.redirectUri ?? `${url.origin}/api/connections/oauth/callback`;
+      const callbackResult = await completeOAuthCallback({
+        session,
+        workspaceId,
+        providerKey,
+        displayName: body.displayName,
+        rawStateToken,
+        redirectUri,
+        authorizationCode: body.authorizationCode ?? "sandbox_auth_code_verified",
+        oauthError: body.error,
+        oauthErrorDescription: body.errorDescription,
+        exchangeTokenFn: async (params) => {
+          const base = await defaultSandboxTokenExchangeHandler(params);
+          return {
+            ...base,
+            grantedScopes:
+              Array.isArray(body.grantedScopes) && body.grantedScopes.length > 0
+                ? body.grantedScopes
+                : base.grantedScopes,
+            externalAccountId: body.externalAccountId ?? base.externalAccountId,
+            externalAccountLabel: body.externalAccountLabel ?? base.externalAccountLabel,
+          };
+        },
+      });
+      let discoveredResources: Awaited<ReturnType<typeof discoverAndPersistConnectionResources>> =
+        [];
+      try {
+        discoveredResources = await discoverAndPersistConnectionResources(
+          session,
+          workspaceId,
+          callbackResult.connectionId,
+        );
+      } catch {
+        discoveredResources = [];
+      }
+      return jsonResponse({ callbackResult, discoveredResources }, 200);
+    }
+
+    if (pathname === "/api/connections/mappings") {
+      const session = await getWorkerSession(request);
+      if (method === "POST") {
+        const body = (await request.json()) as {
+          workspaceId?: string;
+          connectedResourceId?: string;
+          projectId?: string;
+          environmentId?: string | null;
+          mappingRole?: "PRIMARY" | "SECONDARY";
+        };
+        const workspaceId = body.workspaceId ?? session?.activeWorkspace.id ?? "";
+        const mapping = await mapResourceToProjectEnvironment(session, workspaceId, body);
+        return jsonResponse({ mapping }, 201);
+      }
+      if (method === "DELETE") {
+        let workspaceId = url.searchParams.get("workspaceId") ?? "";
+        let mappingId = url.searchParams.get("mappingId") ?? "";
+        if (!mappingId) {
+          const body = (await request.json().catch(() => ({}))) as {
+            workspaceId?: string;
+            mappingId?: string;
+          };
+          workspaceId = workspaceId || body.workspaceId || "";
+          mappingId = mappingId || body.mappingId || "";
+        }
+        workspaceId = workspaceId || session?.activeWorkspace.id || "";
+        const result = await unmapResourceFromProject(session, workspaceId, mappingId);
+        return jsonResponse({ result }, 200);
+      }
+    }
+
+    const connectionDetailMatch = pathname.match(/^\/api\/connections\/([^/]+)$/);
+    if (connectionDetailMatch) {
+      const session = await getWorkerSession(request);
+      const connectionId = decodeURIComponent(connectionDetailMatch[1]);
+      if (method === "GET") {
+        const workspaceId =
+          url.searchParams.get("workspaceId") ?? session?.activeWorkspace.id ?? "";
+        const connection = await getWorkspaceConnectionDetail(session, workspaceId, connectionId);
+        return jsonResponse({ connection }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as {
+          workspaceId?: string;
+          action?: "discover" | "validate" | "refresh_token" | "disconnect";
+          simulationScenario?: ReadOnlyProviderContext["simulationScenario"];
+          simulateInvalidGrant?: boolean;
+        };
+        const workspaceId = body.workspaceId ?? session?.activeWorkspace.id ?? "";
+        switch (body.action) {
+          case "discover": {
+            const discoveredResources = await discoverAndPersistConnectionResources(
+              session,
+              workspaceId,
+              connectionId,
+            );
+            const connection = await getWorkspaceConnectionDetail(
+              session,
+              workspaceId,
+              connectionId,
+            );
+            return jsonResponse({ discoveredResources, connection }, 200);
+          }
+          case "validate": {
+            const healthSnapshot = await validateConnectionHealth(
+              session,
+              workspaceId,
+              connectionId,
+              {
+                simulationScenario: body.simulationScenario,
+              },
+            );
+            const connection = await getWorkspaceConnectionDetail(
+              session,
+              workspaceId,
+              connectionId,
+            );
+            return jsonResponse({ healthSnapshot, connection }, 200);
+          }
+          case "refresh_token": {
+            const access = await authorizeWorkspaceAccess({
+              session,
+              workspaceId,
+              requiredPermission: "connection:manage",
+            });
+            const refreshResult = await refreshConnectionOAuthToken({
+              organizationId: access.organizationId,
+              workspaceId,
+              connectionId,
+              actorUserId: access.session.user.id,
+              ...(body.simulateInvalidGrant
+                ? {
+                    refreshFn: async (params) =>
+                      defaultSandboxTokenRefreshHandler({
+                        ...params,
+                        refreshToken: "invalid_grant_revoked_token",
+                      }),
+                  }
+                : {}),
+            });
+            const connection = await getWorkspaceConnectionDetail(
+              session,
+              workspaceId,
+              connectionId,
+            );
+            return jsonResponse({ refreshResult, connection }, 200);
+          }
+          case "disconnect": {
+            const disconnectResult = await disconnectProviderConnection({
+              session,
+              workspaceId,
+              connectionId,
+            });
+            const connection = await getWorkspaceConnectionDetail(
+              session,
+              workspaceId,
+              connectionId,
+            );
+            return jsonResponse({ disconnectResult, connection }, 200);
+          }
+          default:
+            throw new AppError({
+              code: ERROR_CODES.VALIDATION_ERROR,
+              message:
+                'Unsupported connection action. Expected "discover", "validate", "refresh_token", or "disconnect".',
+            });
+        }
+      }
     }
   } catch (error) {
     return errorResponse(error);

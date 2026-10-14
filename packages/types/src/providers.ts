@@ -306,7 +306,8 @@ export interface ReadOnlyProviderContext {
     | "expired_token"
     | "revoked_token"
     | "provider_unavailable"
-    | "malformed_response";
+    | "malformed_response"
+    | "stale_data";
 }
 
 export interface ProviderCredentialValidationResult {

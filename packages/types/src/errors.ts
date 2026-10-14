@@ -89,6 +89,14 @@ export function toAppError(
   if (err instanceof AppError) {
     return err;
   }
+  if (
+    err &&
+    typeof err === "object" &&
+    "toAppError" in err &&
+    typeof (err as { toAppError?: unknown }).toAppError === "function"
+  ) {
+    return (err as { toAppError: () => AppError }).toAppError();
+  }
   if (err instanceof Error) {
     return new AppError({
       code: ERROR_CODES.INTERNAL_ERROR,

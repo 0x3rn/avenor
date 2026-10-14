@@ -318,6 +318,19 @@ export class DeterministicReadOnlyProviderAdapter implements ReadOnlyProviderAda
         };
       }
 
+      if (context.simulationScenario === "stale_data") {
+        return {
+          providerKey: this.providerKey,
+          status: "STALE",
+          uxState: "stale_cached",
+          checkedAtIso,
+          latencyMs: 42,
+          grantedScopes: effectiveScopes,
+          missingScopes: [],
+          message: `Connection is reachable, but source freshness exceeded expected window for ${this.displayName}.`,
+        };
+      }
+
       return {
         providerKey: this.providerKey,
         status: "HEALTHY",
