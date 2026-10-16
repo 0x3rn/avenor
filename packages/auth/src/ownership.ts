@@ -156,38 +156,60 @@ export async function getWorkspaceGovernanceDetails(
     requiredPermission: "workspace:read",
   });
 
-  const wsRes = await dbQuery<{
-    workspace_id: string;
-    workspace_name: string;
-    workspace_slug: string;
-    default_timezone: string;
-    default_currency: string;
-    org_id: string;
-    org_name: string;
-    org_slug: string;
-    role: WorkspaceRole;
-    project_count: string;
-    member_count: string;
-  }>(
-    `SELECT
-       w.id AS workspace_id,
-       w.name AS workspace_name,
-       w.slug AS workspace_slug,
-       w.default_timezone,
-       w.default_currency,
-       o.id AS org_id,
-       o.name AS org_name,
-       o.slug AS org_slug,
-       wm.role,
-       (SELECT COUNT(*)::text FROM logical_projects lp WHERE lp.workspace_id = w.id AND lp.status = 'ACTIVE') AS project_count,
-       (SELECT COUNT(*)::text FROM workspace_memberships wm2 WHERE wm2.workspace_id = w.id) AS member_count
-     FROM workspaces w
-     INNER JOIN organizations o ON o.id = w.organization_id
-     INNER JOIN workspace_memberships wm ON wm.workspace_id = w.id AND wm.user_id = $2
-     WHERE w.id = $1
-     LIMIT 1`,
-    [workspaceId, session?.user.id],
-  );
+  const [wsRes, membersRes, auditLogs] = await Promise.all([
+    dbQuery<{
+      workspace_id: string;
+      workspace_name: string;
+      workspace_slug: string;
+      default_timezone: string;
+      default_currency: string;
+      org_id: string;
+      org_name: string;
+      org_slug: string;
+      role: WorkspaceRole;
+      project_count: string;
+      member_count: string;
+    }>(
+      `SELECT
+         w.id AS workspace_id,
+         w.name AS workspace_name,
+         w.slug AS workspace_slug,
+         w.default_timezone,
+         w.default_currency,
+         o.id AS org_id,
+         o.name AS org_name,
+         o.slug AS org_slug,
+         wm.role,
+         (SELECT COUNT(*)::text FROM logical_projects lp WHERE lp.workspace_id = w.id AND lp.status = 'ACTIVE') AS project_count,
+         (SELECT COUNT(*)::text FROM workspace_memberships wm2 WHERE wm2.workspace_id = w.id) AS member_count
+       FROM workspaces w
+       INNER JOIN organizations o ON o.id = w.organization_id
+       INNER JOIN workspace_memberships wm ON wm.workspace_id = w.id AND wm.user_id = $2
+       WHERE w.id = $1
+       LIMIT 1`,
+      [workspaceId, session?.user.id],
+    ),
+    dbQuery<{
+      user_id: string;
+      name: string;
+      email: string;
+      role: WorkspaceRole;
+      created_at: Date;
+    }>(
+      `SELECT
+         u.id AS user_id,
+         u.name,
+         u.email,
+         wm.role,
+         wm.created_at
+       FROM workspace_memberships wm
+       INNER JOIN users u ON u.id = wm.user_id
+       WHERE wm.workspace_id = $1
+       ORDER BY wm.created_at ASC`,
+      [workspaceId],
+    ),
+    listAuditLogsForWorkspace(workspaceId, 20),
+  ]);
 
   if (wsRes.rows.length === 0) {
     throw new AppError({
@@ -197,27 +219,6 @@ export async function getWorkspaceGovernanceDetails(
   }
 
   const row = wsRes.rows[0];
-  const membersRes = await dbQuery<{
-    user_id: string;
-    name: string;
-    email: string;
-    role: WorkspaceRole;
-    created_at: Date;
-  }>(
-    `SELECT
-       u.id AS user_id,
-       u.name,
-       u.email,
-       wm.role,
-       wm.created_at
-     FROM workspace_memberships wm
-     INNER JOIN users u ON u.id = wm.user_id
-     WHERE wm.workspace_id = $1
-     ORDER BY wm.created_at ASC`,
-    [workspaceId],
-  );
-
-  const auditLogs = await listAuditLogsForWorkspace(workspaceId, 20);
 
   return {
     workspace: {

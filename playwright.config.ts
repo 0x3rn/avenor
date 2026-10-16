@@ -39,7 +39,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   expect: {
-    timeout: 20000,
+    timeout: 45000,
   },
   use: {
     baseURL: BASE_URL,

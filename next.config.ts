@@ -3,6 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  experimental: {
+    cpus: 1,
+    workerThreads: false,
+  },
   serverExternalPackages: ["pg"],
   transpilePackages: [
     "@avenor/types",

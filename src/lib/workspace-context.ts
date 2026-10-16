@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   type AuthenticatedSessionContext,
   getWorkspaceGovernanceDetails,
@@ -16,25 +17,27 @@ export interface AuthenticatedAppContext {
   projects: LogicalProjectSummary[];
 }
 
-export async function requireAuthenticatedAppContext(): Promise<AuthenticatedAppContext> {
-  const session = await getServerSession();
-  if (!session) {
-    redirect("/login");
-  }
+export const requireAuthenticatedAppContext = React.cache(
+  async (): Promise<AuthenticatedAppContext> => {
+    const session = await getServerSession();
+    if (!session) {
+      redirect("/login");
+    }
 
-  const activeWorkspaceId = session.activeWorkspace.id;
+    const activeWorkspaceId = session.activeWorkspace.id;
 
-  const [governance, projects] = await Promise.all([
-    getWorkspaceGovernanceDetails(session, activeWorkspaceId),
-    listWorkspaceProjects(session, activeWorkspaceId, {
-      includeArchived: true,
-    }),
-  ]);
+    const [governance, projects] = await Promise.all([
+      getWorkspaceGovernanceDetails(session, activeWorkspaceId),
+      listWorkspaceProjects(session, activeWorkspaceId, {
+        includeArchived: true,
+      }),
+    ]);
 
-  return {
-    session,
-    workspaces: session.workspaces,
-    governance,
-    projects,
-  };
-}
+    return {
+      session,
+      workspaces: session.workspaces,
+      governance,
+      projects,
+    };
+  },
+);
