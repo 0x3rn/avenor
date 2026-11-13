@@ -10,10 +10,16 @@ import { describe, expect, it } from "vitest";
 import { ConnectionsConsole } from "../../src/components/connections/connections-console";
 import { getProviderCatalogEntry, PROVIDER_CATALOG } from "../../src/lib/providers";
 import {
+  checkGa4DimensionMetricCompatibility,
   createGa4ReadOnlyAdapter,
   discoverGa4PropertiesAndStreams,
+  GA4_METRIC_DICTIONARY,
   GA4_READONLY_SCOPE,
   normalizeGa4PropertyResourceName,
+  parseGa4MetricNumber,
+  readGa4StandardReportBundle,
+  resolveGa4MetricDefinition,
+  validateGa4StandardQueryInputs,
 } from "../../src/lib/providers/google-analytics";
 import { ScopedTelemetryCache } from "../../src/lib/providers/google-shared/cache";
 import { executeGoogleReadRequest } from "../../src/lib/providers/google-shared/http";
@@ -416,5 +422,536 @@ describe("Milestone 03 — GA4 Admin API Discovery & Read-Only Guardrails (THE-1
     expect(html).toContain("GA4 Marketing Property");
     expect(html).toContain("https://www.googleapis.com/auth/analytics.readonly");
     expect(html).toContain('data-testid="connect-provider-ga4"');
+  });
+});
+
+describe("Milestone 03 — GA4 Standard Reporting Adapter & Metric Dictionary (THE-123)", () => {
+  it("resolves documented GA4 metric definitions, rejects unmapped metrics/dimensions, and distinguishes 0 from null", () => {
+    expect(GA4_METRIC_DICTIONARY.sessions.apiName).toBe("sessions");
+    expect(GA4_METRIC_DICTIONARY.activeUsers.aggregationRule).toBe(
+      "non_additive_across_properties",
+    );
+    expect(GA4_METRIC_DICTIONARY.activeUsers.crossPropertySummable).toBe(false);
+    expect(GA4_METRIC_DICTIONARY.engagementRate.unit).toBe("ratio");
+
+    const convDef = resolveGa4MetricDefinition("keyEvents");
+    expect(convDef.apiName).toBe("keyEvents");
+    expect(() => resolveGa4MetricDefinition("unknown_metric_xyz")).toThrowError(
+      /Unsupported GA4 standard metric/i,
+    );
+
+    expect(parseGa4MetricNumber("0")).toBe(0);
+    expect(parseGa4MetricNumber("128.45")).toBe(128.45);
+    expect(parseGa4MetricNumber("")).toBeNull();
+    expect(parseGa4MetricNumber(null)).toBeNull();
+    expect(parseGa4MetricNumber("not-a-number")).toBeNull();
+
+    // Valid standard report input passes cleanly
+    expect(() =>
+      validateGa4StandardQueryInputs({
+        startDate: "2026-10-01",
+        endDate: "2026-10-07",
+        metrics: ["sessions", "activeUsers", "engagedSessions", "engagementRate"],
+        dimensions: ["date", "sessionDefaultChannelGroup"],
+      }),
+    ).not.toThrow();
+
+    // Realtime-only dimensions must NEVER leak into standard reports
+    expect(() =>
+      validateGa4StandardQueryInputs({
+        startDate: "2026-10-01",
+        endDate: "2026-10-07",
+        metrics: ["sessions"],
+        dimensions: ["minutesAgo"],
+      }),
+    ).toThrowError(/dimension/i);
+
+    // Inverted date ranges must fail fast
+    expect(() =>
+      validateGa4StandardQueryInputs({
+        startDate: "2026-10-10",
+        endDate: "2026-10-01",
+        metrics: ["sessions"],
+      }),
+    ).toThrowError(/date/i);
+  });
+
+  it("queries GA4 Data API batchRunReports with TOTAL aggregation for non-additive users, preserves property timezone, extracts sampling/thresholding/other flags, and caches per tenant", async () => {
+    const capturedRequests: Array<{ url: string; method: string; body: unknown }> = [];
+    let batchCallCount = 0;
+
+    const mockFetch: typeof fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      capturedRequests.push({ url, method, body });
+
+      if (url.endsWith("/properties/402918401:checkCompatibility")) {
+        return new Response(
+          JSON.stringify({
+            dimensionCompatibilities: [
+              { dimensionMetadata: { apiName: "date" }, compatibility: "COMPATIBLE" },
+            ],
+            metricCompatibilities: [
+              { metricMetadata: { apiName: "sessions" }, compatibility: "COMPATIBLE" },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (url.includes("/properties/402918401/keyEvents")) {
+        return new Response(
+          JSON.stringify({
+            keyEvents: [
+              {
+                name: "properties/402918401/keyEvents/signup_complete",
+                eventName: "signup_complete",
+                countingMethod: "ONCE_PER_SESSION",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (url.endsWith("/properties/402918401:batchRunReports")) {
+        batchCallCount += 1;
+        const payload = body as { requests: Array<{ dimensions?: Array<{ name: string }> }> };
+        const firstDim = payload.requests[0]?.dimensions?.[0]?.name ?? "";
+
+        // Batch 1 (starts with "date") vs Batch 2 (starts with "deviceCategory")
+        if (firstDim === "date") {
+          return new Response(
+            JSON.stringify({
+              reports: [
+                // Report 0: date trend (coreMetrics order)
+                {
+                  dimensionHeaders: [{ name: "date" }],
+                  metricHeaders: [
+                    { name: "activeUsers", type: "TYPE_INTEGER" },
+                    { name: "totalUsers", type: "TYPE_INTEGER" },
+                    { name: "newUsers", type: "TYPE_INTEGER" },
+                    { name: "sessions", type: "TYPE_INTEGER" },
+                    { name: "engagedSessions", type: "TYPE_INTEGER" },
+                    { name: "engagementRate", type: "TYPE_FLOAT" },
+                    { name: "screenPageViews", type: "TYPE_INTEGER" },
+                    { name: "eventCount", type: "TYPE_INTEGER" },
+                    { name: "averageSessionDuration", type: "TYPE_SECONDS" },
+                    { name: "keyEvents", type: "TYPE_INTEGER" },
+                  ],
+                  rows: [
+                    {
+                      dimensionValues: [{ value: "20261001" }],
+                      metricValues: [
+                        { value: "90" },
+                        { value: "95" },
+                        { value: "40" },
+                        { value: "100" },
+                        { value: "70" },
+                        { value: "0.7" },
+                        { value: "260" },
+                        { value: "710" },
+                        { value: "120.5" },
+                        { value: "5" },
+                      ],
+                    },
+                    {
+                      dimensionValues: [{ value: "20261002" }],
+                      metricValues: [
+                        { value: "130" },
+                        { value: "140" },
+                        { value: "55" },
+                        { value: "150" },
+                        { value: "105" },
+                        { value: "0.7" },
+                        { value: "390" },
+                        { value: "980" },
+                        { value: "140.0" },
+                        { value: "0" },
+                      ],
+                    },
+                  ],
+                  totals: [
+                    {
+                      dimensionValues: [{ value: "RESERVED_TOTAL" }],
+                      metricValues: [
+                        // Distinct 2-day activeUsers is 185, NOT 90 + 130 = 220!
+                        { value: "185" },
+                        { value: "195" },
+                        { value: "95" },
+                        { value: "250" },
+                        { value: "175" },
+                        { value: "0.7" },
+                        { value: "650" },
+                        { value: "1690" },
+                        { value: "132.2" },
+                        { value: "5" },
+                      ],
+                    },
+                  ],
+                  rowCount: 2,
+                  metadata: {
+                    timeZone: "Europe/Berlin",
+                    currencyCode: "EUR",
+                    subjectToThresholding: true,
+                    dataLossFromOtherRow: true,
+                    samplingMetadatas: [
+                      { samplesReadCount: "500000", samplingSpaceSize: "1200000" },
+                    ],
+                  },
+                },
+                // Report 1: sessionDefaultChannelGroup
+                {
+                  dimensionHeaders: [{ name: "sessionDefaultChannelGroup" }],
+                  metricHeaders: [
+                    { name: "activeUsers" },
+                    { name: "sessions" },
+                    { name: "engagedSessions" },
+                    { name: "engagementRate" },
+                    { name: "screenPageViews" },
+                    { name: "eventCount" },
+                    { name: "keyEvents" },
+                  ],
+                  rows: [
+                    {
+                      dimensionValues: [{ value: "Organic Search" }],
+                      metricValues: [
+                        { value: "145" },
+                        { value: "180" },
+                        { value: "135" },
+                        { value: "0.75" },
+                        { value: "420" },
+                        { value: "1100" },
+                        { value: "4" },
+                      ],
+                    },
+                  ],
+                  metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+                },
+                // Report 2: sessionSourceMedium
+                {
+                  dimensionHeaders: [{ name: "sessionSourceMedium" }],
+                  metricHeaders: [
+                    { name: "activeUsers" },
+                    { name: "sessions" },
+                    { name: "engagedSessions" },
+                    { name: "engagementRate" },
+                    { name: "screenPageViews" },
+                    { name: "eventCount" },
+                    { name: "keyEvents" },
+                  ],
+                  rows: [
+                    {
+                      dimensionValues: [{ value: "google / organic" }],
+                      metricValues: [
+                        { value: "140" },
+                        { value: "170" },
+                        { value: "130" },
+                        { value: "0.76" },
+                        { value: "400" },
+                        { value: "1020" },
+                        { value: "4" },
+                      ],
+                    },
+                  ],
+                  metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+                },
+                // Report 3: landingPage + pageTitle
+                {
+                  dimensionHeaders: [{ name: "landingPage" }, { name: "pageTitle" }],
+                  metricHeaders: [
+                    { name: "activeUsers" },
+                    { name: "sessions" },
+                    { name: "engagedSessions" },
+                    { name: "engagementRate" },
+                    { name: "screenPageViews" },
+                    { name: "eventCount" },
+                    { name: "keyEvents" },
+                  ],
+                  rows: [
+                    {
+                      dimensionValues: [{ value: "/pricing" }, { value: "Pricing — Avenor" }],
+                      metricValues: [
+                        { value: "75" },
+                        { value: "90" },
+                        { value: "72" },
+                        { value: "0.8" },
+                        { value: "210" },
+                        { value: "610" },
+                        { value: "3" },
+                      ],
+                    },
+                  ],
+                  metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+                },
+                // Report 4: pagePath + pageTitle
+                {
+                  dimensionHeaders: [{ name: "pagePath" }, { name: "pageTitle" }],
+                  metricHeaders: [
+                    { name: "activeUsers" },
+                    { name: "sessions" },
+                    { name: "engagedSessions" },
+                    { name: "engagementRate" },
+                    { name: "screenPageViews" },
+                    { name: "eventCount" },
+                    { name: "keyEvents" },
+                  ],
+                  rows: [
+                    {
+                      dimensionValues: [{ value: "/pricing" }, { value: "Pricing — Avenor" }],
+                      metricValues: [
+                        { value: "75" },
+                        { value: "90" },
+                        { value: "72" },
+                        { value: "0.8" },
+                        { value: "210" },
+                        { value: "610" },
+                        { value: "3" },
+                      ],
+                    },
+                  ],
+                  metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json", "x-goog-quota-remaining": "1950" },
+            },
+          );
+        }
+
+        // Batch 2 (deviceCategory, country, city, eventName)
+        return new Response(
+          JSON.stringify({
+            reports: [
+              {
+                dimensionHeaders: [{ name: "deviceCategory" }],
+                metricHeaders: [
+                  { name: "activeUsers" },
+                  { name: "sessions" },
+                  { name: "engagedSessions" },
+                  { name: "engagementRate" },
+                  { name: "screenPageViews" },
+                  { name: "eventCount" },
+                  { name: "keyEvents" },
+                ],
+                rows: [
+                  {
+                    dimensionValues: [{ value: "desktop" }],
+                    metricValues: [
+                      { value: "130" },
+                      { value: "170" },
+                      { value: "129" },
+                      { value: "0.76" },
+                      { value: "440" },
+                      { value: "1120" },
+                      { value: "4" },
+                    ],
+                  },
+                ],
+                metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+              },
+              {
+                dimensionHeaders: [{ name: "country" }],
+                metricHeaders: [
+                  { name: "activeUsers" },
+                  { name: "sessions" },
+                  { name: "engagedSessions" },
+                  { name: "engagementRate" },
+                  { name: "screenPageViews" },
+                  { name: "eventCount" },
+                  { name: "keyEvents" },
+                ],
+                rows: [
+                  {
+                    dimensionValues: [{ value: "Germany" }],
+                    metricValues: [
+                      { value: "110" },
+                      { value: "145" },
+                      { value: "110" },
+                      { value: "0.76" },
+                      { value: "380" },
+                      { value: "950" },
+                      { value: "4" },
+                    ],
+                  },
+                ],
+                metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+              },
+              {
+                dimensionHeaders: [{ name: "city" }],
+                metricHeaders: [
+                  { name: "activeUsers" },
+                  { name: "sessions" },
+                  { name: "engagedSessions" },
+                  { name: "engagementRate" },
+                  { name: "screenPageViews" },
+                  { name: "eventCount" },
+                  { name: "keyEvents" },
+                ],
+                rows: [
+                  {
+                    dimensionValues: [{ value: "Berlin" }],
+                    metricValues: [
+                      { value: "62" },
+                      { value: "80" },
+                      { value: "62" },
+                      { value: "0.78" },
+                      { value: "210" },
+                      { value: "510" },
+                      { value: "2" },
+                    ],
+                  },
+                ],
+                metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+              },
+              {
+                dimensionHeaders: [{ name: "eventName" }],
+                metricHeaders: [
+                  { name: "eventCount" },
+                  { name: "activeUsers" },
+                  { name: "keyEvents" },
+                ],
+                rows: [
+                  {
+                    dimensionValues: [{ value: "page_view" }],
+                    metricValues: [{ value: "650" }, { value: "185" }, { value: "0" }],
+                  },
+                ],
+                metadata: { timeZone: "Europe/Berlin", currencyCode: "EUR" },
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      throw new Error(`Unexpected GA4 URL in test: ${method} ${url}`);
+    };
+
+    const ctx = createTestContext({ workspaceId: "ws_ga4_123_cache_test" });
+    const compat = await checkGa4DimensionMetricCompatibility({
+      context: ctx,
+      propertyName: "properties/402918401",
+      metrics: ["sessions"],
+      dimensions: ["date"],
+      fetchFn: mockFetch,
+    });
+    expect(compat.compatible).toBe(true);
+    expect(compat.incompatibleDimensions).toHaveLength(0);
+
+    const bundle = await readGa4StandardReportBundle(
+      ctx,
+      {
+        propertyId: "402918401",
+        startDate: "2026-10-01",
+        endDate: "2026-10-02",
+      },
+      { fetchFn: mockFetch, bypassCache: true },
+    );
+
+    expect(bundle.reportingTimeZone).toBe("Europe/Berlin");
+    expect(bundle.currencyCode).toBe("EUR");
+    expect(bundle.totals.sessions).toBe(250);
+    // Crucial correctness check: uses reserved TOTAL row (185), never 90 + 130 = 220!
+    expect(bundle.totals.activeUsers).toBe(185);
+    expect(bundle.totals.totalUsers).toBe(195);
+    expect(bundle.dailySeries[1]?.keyEvents).toBe(0);
+    expect(bundle.dataQuality.isSampled).toBe(true);
+    expect(bundle.dataQuality.isThresholded).toBe(true);
+    expect(bundle.dataQuality.hasOtherRowTruncation).toBe(true);
+    expect(bundle.channels[0]?.dimensionValue).toBe("Organic Search");
+    expect(bundle.landingPages[0]?.dimensionValue).toBe("/pricing");
+    expect(bundle.devices[0]?.dimensionValue).toBe("desktop");
+    expect(bundle.countries[0]?.dimensionValue).toBe("Germany");
+
+    // Verify outgoing batchRunReports used POST and requested metricAggregations: ["TOTAL"]
+    const batchReq = capturedRequests.find((r) => r.url.endsWith(":batchRunReports"));
+    expect(batchReq?.method).toBe("POST");
+    const batchPayload = batchReq?.body as {
+      requests: Array<{ metricAggregations?: string[] }>;
+    };
+    expect(batchPayload.requests[0]?.metricAggregations).toContain("TOTAL");
+
+    // Populate cache without bypassCache and verify hit on second call
+    expect(batchCallCount).toBe(2);
+    await readGa4StandardReportBundle(
+      ctx,
+      {
+        propertyId: "402918401",
+        startDate: "2026-10-01",
+        endDate: "2026-10-02",
+      },
+      { fetchFn: mockFetch },
+    );
+    expect(batchCallCount).toBe(4);
+
+    const cachedBundle = await readGa4StandardReportBundle(
+      ctx,
+      {
+        propertyId: "402918401",
+        startDate: "2026-10-01",
+        endDate: "2026-10-02",
+      },
+      { fetchFn: mockFetch },
+    );
+    expect(cachedBundle.cacheStatus).toBe("hit");
+    expect(cachedBundle.totals.activeUsers).toBe(185);
+    expect(batchCallCount).toBe(4);
+
+    // Different tenant must NOT hit cached bundle from org_test_1
+    const otherTenantBundle = await readGa4StandardReportBundle(
+      createTestContext({ organizationId: "org_other", workspaceId: "ws_other" }),
+      {
+        propertyId: "402918401",
+        startDate: "2026-10-01",
+        endDate: "2026-10-02",
+      },
+      { fetchFn: mockFetch },
+    );
+    expect(otherTenantBundle.cacheStatus).toBe("miss");
+    expect(otherTenantBundle.totals.activeUsers).toBe(185);
+    expect(batchCallCount).toBe(6);
+  });
+
+  it("maps readMetrics for sandbox and insufficient-scope contexts without fabricating zero fallbacks", async () => {
+    const ga4Catalog = getProviderCatalogEntry("ga4");
+    if (!ga4Catalog) {
+      throw new Error("Expected GA4 catalog entry");
+    }
+    const adapter = createGa4ReadOnlyAdapter(ga4Catalog);
+
+    const sandboxRead = await adapter.readMetrics(
+      createTestContext({ accessToken: "sbx_ga4_demo_token" }),
+      {
+        capabilityKey: "analytics_sessions",
+        externalResourceId: "properties/402918401",
+        metricKey: "sessions",
+        startDateIso: "2026-10-01T00:00:00.000Z",
+        endDateIso: "2026-10-05T23:59:59.999Z",
+        granularity: "daily",
+      },
+    );
+    expect(sandboxRead.capabilityStatus).toBe("SUPPORTED");
+    expect(sandboxRead.points).toHaveLength(5);
+    expect(sandboxRead.points[0]?.value).toBeGreaterThan(0);
+
+    // Missing required scope yields capability MISSING_PERMISSION with null values (never 0)
+    const deniedRead = await adapter.readMetrics(
+      createTestContext({ grantedScopes: ["https://www.googleapis.com/auth/webmasters.readonly"] }),
+      {
+        capabilityKey: "analytics_sessions",
+        externalResourceId: "properties/402918401",
+        metricKey: "sessions",
+        startDateIso: "2026-10-01T00:00:00.000Z",
+        endDateIso: "2026-10-02T23:59:59.999Z",
+        granularity: "daily",
+      },
+    );
+    expect(deniedRead.capabilityStatus).toBe("MISSING_PERMISSION");
+    expect(deniedRead.points).toHaveLength(1);
+    expect(deniedRead.points[0]?.value).toBeNull();
   });
 });

@@ -99,7 +99,7 @@ describe("THE-117: Read-only provider contracts and granular capability discover
     expect(enterpriseCap?.uxState).toBe("unsupported_plan");
     expect(enterpriseCap?.allowsNumericMetric).toBe(false);
 
-    // 3. GA4 preview capability status
+    // 3. GA4 standard reporting is SUPPORTED in M03 while M08 providers remain PREVIEW_ONLY
     const ga4Catalog = getProviderCatalogEntry("ga4");
     expect(ga4Catalog).toBeDefined();
     if (!ga4Catalog) {
@@ -107,7 +107,19 @@ describe("THE-117: Read-only provider contracts and granular capability discover
     }
     const ga4Matrix = evaluateCapabilityMatrix(ga4Catalog.capabilities, ga4Catalog.defaultScopes);
     const ga4Sessions = ga4Matrix.find((c) => c.capabilityKey === "analytics_sessions");
-    expect(ga4Sessions?.status).toBe("PREVIEW_ONLY");
+    expect(ga4Sessions?.status).toBe("SUPPORTED");
+
+    const cloudflareCatalog = getProviderCatalogEntry("cloudflare");
+    expect(cloudflareCatalog).toBeDefined();
+    if (!cloudflareCatalog) {
+      throw new Error("Expected cloudflare catalog entry");
+    }
+    const cloudflareMatrix = evaluateCapabilityMatrix(
+      cloudflareCatalog.capabilities,
+      cloudflareCatalog.defaultScopes,
+    );
+    const edgeTraffic = cloudflareMatrix.find((c) => c.capabilityKey === "edge_traffic");
+    expect(edgeTraffic?.status).toBe("PREVIEW_ONLY");
   });
 
   it("never fabricates numeric 0 when reading metrics for missing permissions or unsupported capabilities", async () => {

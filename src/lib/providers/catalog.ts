@@ -105,7 +105,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     availabilityStatus: "oauth_framework_ready",
     targetMilestone: "M03",
     summary:
-      "Read-only property discovery and analytics capability contract via Google OAuth 2.0 (`analytics.readonly`). Full traffic and funnel ingestion arrives in Milestone 03.",
+      "Read-only GA4 Admin API property discovery and Data API standard reporting via Google OAuth 2.0 (`analytics.readonly`), preserving property timezone, thresholding, and sampling metadata.",
     readOnlyGuaranteeText:
       "Requests only `https://www.googleapis.com/auth/analytics.readonly`. Avenor cannot create or edit GA4 properties, data streams, conversion events, or user access.",
     prohibitedOperationsSummary: [
@@ -141,19 +141,25 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
         capabilityKey: "analytics_sessions",
         label: "Sessions, Users & Acquisition Series",
         description:
-          "Reads daily and hourly sessions, engaged sessions, bounce rate, and channel attribution via GA4 Data API.",
+          "Reads daily and hourly sessions, engaged sessions, active users, engagement rate, average session duration, key events, and channel/landing-page attribution via GA4 Data API.",
         requiredScopes: ["https://www.googleapis.com/auth/analytics.readonly"],
         requiredPermissions: ["Viewer"],
         supportedGranularities: ["hourly", "daily", "weekly", "monthly"],
         supportedDimensions: [
+          "date",
           "sessionDefaultChannelGroup",
+          "sessionSourceMedium",
+          "landingPage",
           "pagePath",
+          "pageTitle",
           "country",
+          "city",
           "deviceCategory",
+          "platform",
+          "eventName",
         ],
         expectedLatencyMinutes: 240,
         freshnessWindowMinutes: 360,
-        defaultStatus: "PREVIEW_ONLY",
         rateLimitPolicy: {
           requestsPerMinute: 60,
           burstLimit: 15,

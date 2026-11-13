@@ -19,6 +19,8 @@ import {
   listGa4AccountSummaries,
   mapGa4PropertiesToDiscoveryItems,
 } from "./admin";
+import { resolveGa4MetricDefinition } from "./dictionary";
+import { readGa4StandardReportBundle } from "./reporting";
 import { GA4_READONLY_SCOPE } from "./types";
 
 /**
@@ -93,7 +95,6 @@ export function createGa4ReadOnlyAdapter(
     },
 
     async getCapabilities(context: ReadOnlyProviderContext) {
-      assertGa4ScenarioAndScope(context);
       return evaluateCapabilityMatrix(catalogEntry.capabilities, context.grantedScopes, {
         providerPlanTier: context.providerPlanTier ?? "pro",
       });
@@ -195,8 +196,6 @@ export function createGa4ReadOnlyAdapter(
       context: ReadOnlyProviderContext,
       query: ProviderMetricQuery,
     ): Promise<ProviderMetricReadResult> {
-      assertGa4ScenarioAndScope(context);
-
       const capabilities = await adapter.getCapabilities(context);
       const matchingCap = capabilities.find((cap) => cap.capabilityKey === query.capabilityKey);
 
@@ -210,25 +209,99 @@ export function createGa4ReadOnlyAdapter(
 
       const observedAtIso = new Date().toISOString();
 
+      if (
+        !matchingCap.allowsNumericMetric ||
+        context.simulationScenario === "missing_scope" ||
+        context.simulationScenario === "plan_restricted"
+      ) {
+        return {
+          providerKey: "ga4",
+          externalResourceId: query.externalResourceId,
+          capabilityKey: query.capabilityKey,
+          metricKey: query.metricKey,
+          capabilityStatus: matchingCap.status,
+          uxState: matchingCap.uxState,
+          observedAtIso,
+          sourceFreshnessMinutes: matchingCap.freshnessWindowMinutes,
+          provenanceLabel: `${catalogEntry.shortName} • ${query.externalResourceId}`,
+          statusExplanation: matchingCap.statusExplanation,
+          points: [
+            {
+              timestampIso: query.startDateIso,
+              metricKey: query.metricKey,
+              value: null,
+              unit: "count",
+            },
+          ],
+        };
+      }
+
+      assertGa4ScenarioAndScope(context);
+
+      const metricDef = resolveGa4MetricDefinition(query.metricKey);
+      const startDate = query.startDateIso.slice(0, 10);
+      const endDate = query.endDateIso.slice(0, 10);
+
+      const report = await readGa4StandardReportBundle(
+        context,
+        {
+          propertyId: query.externalResourceId,
+          startDate,
+          endDate,
+        },
+        { fetchFn },
+      );
+
+      const seriesKey = metricDef.avenorKey as keyof (typeof report.dailySeries)[number];
+      const points =
+        report.dailySeries.length > 0
+          ? report.dailySeries.map((day) => {
+              const rawVal = day[seriesKey];
+              const value = typeof rawVal === "number" ? rawVal : null;
+              return {
+                timestampIso: `${day.date}T00:00:00.000Z`,
+                metricKey: metricDef.avenorKey,
+                value,
+                unit: metricDef.unit,
+                dimensions: {
+                  reportingTimeZone: report.reportingTimeZone,
+                },
+              };
+            })
+          : [
+              {
+                timestampIso: query.startDateIso,
+                metricKey: metricDef.avenorKey,
+                value: null,
+                unit: metricDef.unit,
+                dimensions: {
+                  reportingTimeZone: report.reportingTimeZone,
+                },
+              },
+            ];
+
+      const explanation =
+        report.dataQuality.notices.length > 0
+          ? `${matchingCap.statusExplanation} ${report.dataQuality.notices.join(" ")}`
+          : matchingCap.statusExplanation;
+
       return {
         providerKey: "ga4",
-        externalResourceId: query.externalResourceId,
+        externalResourceId: report.propertyName,
         capabilityKey: query.capabilityKey,
-        metricKey: query.metricKey,
+        metricKey: metricDef.avenorKey,
         capabilityStatus: matchingCap.status,
-        uxState: matchingCap.uxState,
-        observedAtIso,
+        uxState:
+          report.dataQuality.emptyReason === "NO_DATA"
+            ? "empty_filtered"
+            : report.dataQuality.isSampled || report.dataQuality.isThresholded
+              ? "partial_coverage"
+              : matchingCap.uxState,
+        observedAtIso: report.fetchedAtIso,
         sourceFreshnessMinutes: matchingCap.freshnessWindowMinutes,
-        provenanceLabel: `${catalogEntry.shortName} • ${query.externalResourceId}`,
-        statusExplanation: matchingCap.statusExplanation,
-        points: [
-          {
-            timestampIso: query.startDateIso,
-            metricKey: query.metricKey,
-            value: null,
-            unit: "count",
-          },
-        ],
+        provenanceLabel: `${catalogEntry.shortName} • ${report.propertyName} • ${report.reportingTimeZone} • ${report.sourceMode === "live" ? "Live Data API" : "Sandbox Demo"}`,
+        statusExplanation: explanation,
+        points,
       };
     },
   };

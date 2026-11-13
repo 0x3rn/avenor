@@ -15,7 +15,11 @@ import {
   mapResourceToProjectEnvironment,
   unmapResourceFromProject,
 } from "../../src/lib/connections";
-import { GA4_READONLY_SCOPE } from "../../src/lib/providers/google-analytics";
+import { getProviderCatalogEntry } from "../../src/lib/providers";
+import {
+  createGa4ReadOnlyAdapter,
+  GA4_READONLY_SCOPE,
+} from "../../src/lib/providers/google-analytics";
 
 describe("Milestone 03 — GA4 Discovery Persistence & Project Mapping Integration (THE-122)", () => {
   beforeAll(async () => {
@@ -137,5 +141,34 @@ describe("Milestone 03 — GA4 Discovery Persistence & Project Mapping Integrati
     expect(detailAfterUnmap.mappings).toHaveLength(0);
     expect(detailAfterUnmap.connectedResources.length).toBeGreaterThanOrEqual(2);
     expect(JSON.stringify(detailAfterUnmap.auditLogs)).not.toContain(`sbx_ga4_access_${suffix}`);
+
+    // Verify encrypted credential -> server-side GA4 adapter readMetrics works cleanly without exposing tokens
+    const ga4Catalog = getProviderCatalogEntry("ga4");
+    if (!ga4Catalog) {
+      throw new Error("Expected GA4 catalog entry");
+    }
+    const ga4Adapter = createGa4ReadOnlyAdapter(ga4Catalog);
+    const metricsResult = await ga4Adapter.readMetrics(
+      {
+        organizationId: registered.context.activeWorkspace.organizationId,
+        workspaceId,
+        connectionId: connected.connectionId,
+        accessToken: credHandle.exposeSecretForServerAdapter().accessToken,
+        grantedScopes: [GA4_READONLY_SCOPE],
+      },
+      {
+        capabilityKey: "analytics_sessions",
+        externalResourceId: primaryProperty.externalResourceId,
+        metricKey: "sessions",
+        startDateIso: "2026-10-01T00:00:00.000Z",
+        endDateIso: "2026-10-04T23:59:59.999Z",
+        granularity: "daily",
+      },
+    );
+    expect(metricsResult.capabilityStatus).toBe("SUPPORTED");
+    expect(metricsResult.points).toHaveLength(4);
+    expect(metricsResult.points[0]?.value).toBeGreaterThan(0);
+    expect(JSON.stringify(metricsResult)).not.toContain(`sbx_ga4_access_${suffix}`);
+    expect(JSON.stringify(metricsResult)).not.toContain(`sbx_ga4_refresh_${suffix}`);
   });
 });
