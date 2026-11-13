@@ -99,7 +99,7 @@ describe("THE-117: Read-only provider contracts and granular capability discover
     expect(enterpriseCap?.uxState).toBe("unsupported_plan");
     expect(enterpriseCap?.allowsNumericMetric).toBe(false);
 
-    // 3. GA4 standard reporting is SUPPORTED in M03 while M08 providers remain PREVIEW_ONLY
+    // 3. GA4 standard reporting and GSC Search Analytics are SUPPORTED in M03 while M08 providers remain PREVIEW_ONLY
     const ga4Catalog = getProviderCatalogEntry("ga4");
     expect(ga4Catalog).toBeDefined();
     if (!ga4Catalog) {
@@ -108,6 +108,15 @@ describe("THE-117: Read-only provider contracts and granular capability discover
     const ga4Matrix = evaluateCapabilityMatrix(ga4Catalog.capabilities, ga4Catalog.defaultScopes);
     const ga4Sessions = ga4Matrix.find((c) => c.capabilityKey === "analytics_sessions");
     expect(ga4Sessions?.status).toBe("SUPPORTED");
+
+    const gscCatalog = getProviderCatalogEntry("gsc");
+    expect(gscCatalog).toBeDefined();
+    if (!gscCatalog) {
+      throw new Error("Expected gsc catalog entry");
+    }
+    const gscMatrix = evaluateCapabilityMatrix(gscCatalog.capabilities, gscCatalog.defaultScopes);
+    const gscQueries = gscMatrix.find((c) => c.capabilityKey === "search_queries");
+    expect(gscQueries?.status).toBe("SUPPORTED");
 
     const cloudflareCatalog = getProviderCatalogEntry("cloudflare");
     expect(cloudflareCatalog).toBeDefined();

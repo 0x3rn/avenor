@@ -236,14 +236,13 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
         capabilityKey: "search_queries",
         label: "Organic Clicks, Impressions, CTR & Position",
         description:
-          "Reads Search Analytics query, landing page, country, and device performance windows.",
+          "Reads Search Analytics clicks, impressions, weighted CTR, and impression-weighted average position across date, query, page, country, device, and searchAppearance in Pacific Time.",
         requiredScopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
         requiredPermissions: ["Restricted Viewer"],
         supportedGranularities: ["daily", "weekly", "monthly"],
-        supportedDimensions: ["query", "page", "country", "device"],
-        expectedLatencyMinutes: 1440,
-        freshnessWindowMinutes: 1440,
-        defaultStatus: "PREVIEW_ONLY",
+        supportedDimensions: ["date", "query", "page", "country", "device", "searchAppearance"],
+        expectedLatencyMinutes: 2880,
+        freshnessWindowMinutes: 4320,
         rateLimitPolicy: {
           requestsPerMinute: 120,
           burstLimit: 30,

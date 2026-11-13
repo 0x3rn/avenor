@@ -12,6 +12,7 @@ import {
   type ReadOnlyProviderContext,
 } from "@avenor/types";
 import { shouldExecuteLiveGoogleApi } from "../google-shared/http";
+import { readSearchAnalyticsReportBundle } from "./reporting";
 import {
   assertGscScenarioAndScope,
   discoverSearchConsoleSites,
@@ -19,7 +20,7 @@ import {
   listSearchConsoleSites,
   mapGscSitesToDiscoveryItems,
 } from "./sites";
-import { GSC_READONLY_SCOPE } from "./types";
+import { GSC_READONLY_SCOPE, type GscMetricKey } from "./types";
 
 /**
  * Strictly read-only Google Search Console (`gsc`) provider adapter.
@@ -233,25 +234,87 @@ export function createGscReadOnlyAdapter(
 
       assertGscScenarioAndScope(context);
 
+      const allowedMetrics: readonly GscMetricKey[] = ["clicks", "impressions", "ctr", "position"];
+      const normalizedMetric = allowedMetrics.find((m) => m === query.metricKey);
+      if (!normalizedMetric) {
+        throw new ProviderAdapterError({
+          providerKey: "gsc",
+          code: PROVIDER_ERROR_CODES.UNSUPPORTED_CAPABILITY,
+          message: `Unsupported Search Console metric "${query.metricKey}". Supported metrics: ${allowedMetrics.join(", ")}.`,
+        });
+      }
+
+      const startDate = query.startDateIso.slice(0, 10);
+      const endDate = query.endDateIso.slice(0, 10);
+
+      const bundle = await readSearchAnalyticsReportBundle(
+        context,
+        {
+          siteUrl: query.externalResourceId,
+          startDate,
+          endDate,
+          dimensions: ["date"],
+        },
+        { fetchFn },
+      );
+
+      const points =
+        bundle.dailySeries.length > 0
+          ? bundle.dailySeries.map((row) => ({
+              timestampIso: `${row.date ?? startDate}T00:00:00.000Z`,
+              metricKey: normalizedMetric,
+              value: row[normalizedMetric],
+              unit:
+                normalizedMetric === "ctr"
+                  ? "ratio"
+                  : normalizedMetric === "position"
+                    ? "rank"
+                    : "count",
+              dimensions: {
+                reportingTimeZone: bundle.coverage.reportingTimeZone,
+                dataState: bundle.dataState,
+                searchType: bundle.searchType,
+              },
+            }))
+          : [
+              {
+                timestampIso: query.startDateIso,
+                metricKey: normalizedMetric,
+                value: null,
+                unit:
+                  normalizedMetric === "ctr"
+                    ? "ratio"
+                    : normalizedMetric === "position"
+                      ? "rank"
+                      : "count",
+                dimensions: {
+                  reportingTimeZone: bundle.coverage.reportingTimeZone,
+                },
+              },
+            ];
+
+      const explanation =
+        bundle.coverage.notices.length > 0
+          ? `${matchingCap.statusExplanation} ${bundle.coverage.notices.join(" ")}`
+          : matchingCap.statusExplanation;
+
       return {
         providerKey: "gsc",
-        externalResourceId: query.externalResourceId,
+        externalResourceId: bundle.siteUrl,
         capabilityKey: query.capabilityKey,
-        metricKey: query.metricKey,
+        metricKey: normalizedMetric,
         capabilityStatus: matchingCap.status,
-        uxState: matchingCap.uxState,
-        observedAtIso,
+        uxState:
+          bundle.dailySeries.length === 0
+            ? "empty_filtered"
+            : bundle.coverage.hasPreliminaryDatesInWindow
+              ? "stale_cached"
+              : matchingCap.uxState,
+        observedAtIso: bundle.fetchedAtIso,
         sourceFreshnessMinutes: matchingCap.freshnessWindowMinutes,
-        provenanceLabel: `${catalogEntry.shortName} • ${query.externalResourceId}`,
-        statusExplanation: matchingCap.statusExplanation,
-        points: [
-          {
-            timestampIso: query.startDateIso,
-            metricKey: query.metricKey,
-            value: null,
-            unit: "count",
-          },
-        ],
+        provenanceLabel: `${catalogEntry.shortName} • ${bundle.siteUrl} • ${bundle.coverage.reportingTimeZone} • ${bundle.sourceMode === "live" ? "Live Search Analytics API" : "Sandbox Demo"}`,
+        statusExplanation: explanation,
+        points,
       };
     },
   };

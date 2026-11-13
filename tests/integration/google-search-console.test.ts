@@ -17,7 +17,10 @@ import {
   mapResourceToProjectEnvironment,
   unmapResourceFromProject,
 } from "../../src/lib/connections";
-import { GSC_READONLY_SCOPE } from "../../src/lib/providers/google-search-console";
+import {
+  GSC_READONLY_SCOPE,
+  readSearchAnalyticsReportBundle,
+} from "../../src/lib/providers/google-search-console";
 
 describe("Milestone 03 — Search Console Discovery, Refresh & Mapping Integration (THE-125)", () => {
   beforeAll(async () => {
@@ -104,6 +107,30 @@ describe("Milestone 03 — Search Console Discovery, Refresh & Mapping Integrati
       mappingRole: "PRIMARY",
     });
     expect(mapping.externalResourceId).toBe("sc-domain:avenor.dev");
+
+    // Verify encrypted token vault -> Search Analytics query report execution
+    const initialCred = await decryptConnectionCredentialForServer({
+      organizationId: owner.context.activeWorkspace.organizationId,
+      workspaceId,
+      connectionId: connected.connectionId,
+    });
+    const searchBundle = await readSearchAnalyticsReportBundle(
+      {
+        organizationId: owner.context.activeWorkspace.organizationId,
+        workspaceId,
+        connectionId: connected.connectionId,
+        accessToken: initialCred.exposeSecretForServerAdapter().accessToken,
+        grantedScopes: [GSC_READONLY_SCOPE],
+      },
+      {
+        siteUrl: mapping.externalResourceId,
+        startDate: "2026-10-01",
+        endDate: "2026-10-07",
+      },
+    );
+    expect(searchBundle.totals.clicks).toBeGreaterThan(0);
+    expect(searchBundle.coverage.reportingTimeZone).toBe("America/Los_Angeles");
+    expect(JSON.stringify(searchBundle)).not.toContain(`sbx_gsc_access_${suffix}`);
 
     // Rotate token via refresh and verify encrypted vault update without plain-text secret exposure
     await refreshConnectionOAuthToken({
