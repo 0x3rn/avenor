@@ -19,7 +19,8 @@ import {
   listGa4AccountSummaries,
   mapGa4PropertiesToDiscoveryItems,
 } from "./admin";
-import { resolveGa4MetricDefinition } from "./dictionary";
+import { resolveGa4MetricDefinition, validateGa4RealtimeQueryInputs } from "./dictionary";
+import { readGa4RealtimeReportBundle } from "./realtime";
 import { readGa4StandardReportBundle } from "./reporting";
 import { GA4_READONLY_SCOPE } from "./types";
 
@@ -237,6 +238,65 @@ export function createGa4ReadOnlyAdapter(
       }
 
       assertGa4ScenarioAndScope(context);
+
+      if (query.capabilityKey === "realtime_activity") {
+        validateGa4RealtimeQueryInputs({
+          metrics: [query.metricKey],
+          dimensions: query.dimensions,
+        });
+
+        const realtime = await readGa4RealtimeReportBundle(
+          context,
+          {
+            propertyId: query.externalResourceId,
+            metrics: [query.metricKey],
+            dimensions: query.dimensions,
+          },
+          { fetchFn },
+        );
+
+        const metricValue =
+          query.metricKey === "screenPageViews"
+            ? realtime.screenPageViewsLast30m
+            : query.metricKey === "eventCount"
+              ? realtime.eventCountLast30m
+              : realtime.activeUsersLast30m;
+
+        return {
+          providerKey: "ga4",
+          externalResourceId: realtime.propertyName,
+          capabilityKey: query.capabilityKey,
+          metricKey: query.metricKey,
+          capabilityStatus: matchingCap.status,
+          uxState: realtime.rateLimited
+            ? "rate_limited"
+            : realtime.stale
+              ? "stale_cached"
+              : matchingCap.uxState,
+          observedAtIso: realtime.observedAtIso,
+          sourceFreshnessMinutes: Math.max(1, Math.ceil(realtime.freshnessSeconds / 60)),
+          provenanceLabel: `${catalogEntry.shortName} • ${realtime.propertyName} • ${realtime.windowLabel} • ${realtime.sourceMode === "live" ? "Live Realtime API" : "Sandbox Demo"}`,
+          statusExplanation: `${matchingCap.statusExplanation} ${realtime.isEstimateNotice}`,
+          points: [
+            {
+              timestampIso: realtime.observedAtIso,
+              metricKey: query.metricKey,
+              value: metricValue,
+              unit:
+                query.metricKey === "screenPageViews"
+                  ? "views"
+                  : query.metricKey === "eventCount"
+                    ? "events"
+                    : "users",
+              dimensions: {
+                window: "30m_estimate",
+                stale: String(realtime.stale),
+                rateLimited: String(realtime.rateLimited),
+              },
+            },
+          ],
+        };
+      }
 
       const metricDef = resolveGa4MetricDefinition(query.metricKey);
       const startDate = query.startDateIso.slice(0, 10);

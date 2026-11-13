@@ -20,6 +20,7 @@ import {
   createGa4ReadOnlyAdapter,
   GA4_READONLY_SCOPE,
 } from "../../src/lib/providers/google-analytics";
+import { getProjectGa4RealtimeTelemetry } from "../../src/lib/reports/ga4-service";
 
 describe("Milestone 03 — GA4 Discovery Persistence & Project Mapping Integration (THE-122)", () => {
   beforeAll(async () => {
@@ -170,5 +171,95 @@ describe("Milestone 03 — GA4 Discovery Persistence & Project Mapping Integrati
     expect(metricsResult.points[0]?.value).toBeGreaterThan(0);
     expect(JSON.stringify(metricsResult)).not.toContain(`sbx_ga4_access_${suffix}`);
     expect(JSON.stringify(metricsResult)).not.toContain(`sbx_ga4_refresh_${suffix}`);
+  });
+
+  it("serves project-scoped GA4 realtime activity (30-min estimate), returns honest unmapped state, and blocks cross-tenant access", async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const ownerA = await registerUserWithDefaultOwnership({
+      name: "Realtime Owner A",
+      email: `rt-a.${suffix}@avenor.test`,
+      password: "StrongRtPassword!2026",
+      organizationName: `RT Org A ${suffix}`,
+      workspaceName: `RT Workspace A ${suffix}`,
+    });
+    const sessionA = await resolveSessionByToken(ownerA.rawSessionToken);
+    const workspaceA = ownerA.context.activeWorkspace.id;
+
+    const ownerB = await registerUserWithDefaultOwnership({
+      name: "Realtime Owner B",
+      email: `rt-b.${suffix}@avenor.test`,
+      password: "StrongRtPassword!2026",
+      organizationName: `RT Org B ${suffix}`,
+      workspaceName: `RT Workspace B ${suffix}`,
+    });
+    const sessionB = await resolveSessionByToken(ownerB.rawSessionToken);
+
+    const projectA = await createLogicalProject(sessionA, workspaceA, {
+      name: "Realtime Storefront A",
+      slug: `rt-storefront-${suffix}`,
+      primaryDomain: "https://realtime-a.avenor.dev",
+      initialEnvironments: ["PRODUCTION"],
+    });
+    const prodEnv = projectA.environments[0];
+    if (!prodEnv) throw new Error("Expected prod environment");
+
+    // 1. Before any GA4 connection is mapped, API DTO returns blocked/unconnected without fabricating 0s
+    const unmappedRes = await getProjectGa4RealtimeTelemetry(sessionA, projectA.id);
+    expect(unmappedRes.payload.status).toBe("blocked");
+    expect(unmappedRes.payload.uxState).toBe("unconnected");
+    expect(unmappedRes.payload.realtime).toBeNull();
+
+    // 2. Connect GA4 & map property to projectA
+    const redirectUri = "http://localhost:3000/api/connections/oauth/callback";
+    const init = await initiateOAuthAuthorization({
+      session: sessionA,
+      workspaceId: workspaceA,
+      providerKey: "ga4",
+      authorizeEndpointUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      requestedScopes: [GA4_READONLY_SCOPE],
+      redirectUri,
+    });
+    const conn = await completeOAuthCallback({
+      session: sessionA,
+      workspaceId: workspaceA,
+      providerKey: "ga4",
+      displayName: "GA4 Realtime Property",
+      rawStateToken: init.rawStateToken,
+      redirectUri,
+      authorizationCode: "code_rt_ok",
+      exchangeTokenFn: async () => ({
+        accessToken: `sbx_rt_secret_${suffix}`,
+        refreshToken: `sbx_rt_refresh_${suffix}`,
+        expiresInSeconds: 3600,
+        grantedScopes: [GA4_READONLY_SCOPE],
+        externalAccountId: `accounts/rt_${suffix}`,
+        externalAccountLabel: "Realtime Org",
+      }),
+    });
+    const discovered = await discoverAndPersistConnectionResources(
+      sessionA,
+      workspaceA,
+      conn.connectionId,
+    );
+    const prop = discovered[0];
+    if (!prop) throw new Error("Expected discovered GA4 property");
+
+    await mapResourceToProjectEnvironment(sessionA, workspaceA, {
+      connectedResourceId: prop.id,
+      projectId: projectA.id,
+      environmentId: prodEnv.id,
+      mappingRole: "PRIMARY",
+    });
+
+    const readyRes = await getProjectGa4RealtimeTelemetry(sessionA, projectA.id);
+    expect(readyRes.statusCode).toBe(200);
+    expect(readyRes.payload.status).toBe("ready");
+    expect(readyRes.payload.realtime?.windowMinutes).toBe(30);
+    expect(readyRes.payload.realtime?.activeUsersLast30m).toBeGreaterThan(0);
+    expect(JSON.stringify(readyRes)).not.toContain(`sbx_rt_secret_${suffix}`);
+    expect(JSON.stringify(readyRes)).not.toContain(`sbx_rt_refresh_${suffix}`);
+
+    // 3. Tenant B cannot query Tenant A's project realtime endpoint
+    await expect(getProjectGa4RealtimeTelemetry(sessionB, projectA.id)).rejects.toThrow();
   });
 });

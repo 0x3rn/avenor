@@ -46,6 +46,7 @@ import {
   PROVIDER_CATALOG,
   sharedGoogleTelemetryCache,
 } from "../src/lib/providers";
+import { getProjectGa4RealtimeTelemetry } from "../src/lib/reports/ga4-service";
 
 export interface CloudflareWorkerEnv {
   ASSETS?: {
@@ -266,6 +267,27 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         const project = await createLogicalProject(session, workspaceId, body);
         return jsonResponse({ project }, 201);
       }
+    }
+
+    const projectRealtimeMatch = pathname.match(/^\/api\/projects\/([^/]+)\/analytics\/realtime$/);
+    if (projectRealtimeMatch && method === "GET") {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectRealtimeMatch[1]);
+      const result = await getProjectGa4RealtimeTelemetry(session, projectId, {
+        environmentId: url.searchParams.get("environmentId"),
+        resourceId: url.searchParams.get("resourceId"),
+        bypassCache: url.searchParams.get("refresh") === "1",
+      });
+      const responseHeaders: Record<string, string> = {
+        "content-type": "application/json",
+      };
+      if (result.payload.realtime?.rateLimited && result.payload.realtime.retryAfterSeconds) {
+        responseHeaders["Retry-After"] = String(result.payload.realtime.retryAfterSeconds);
+      }
+      return new Response(JSON.stringify(result.payload), {
+        status: result.statusCode,
+        headers: responseHeaders,
+      });
     }
 
     const projectEnvMatch = pathname.match(/^\/api\/projects\/([^/]+)\/environments$/);

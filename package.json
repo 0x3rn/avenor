@@ -17,6 +17,7 @@
     "test:oauth": "vitest run --config vitest.config.ts tests/unit/oauth.test.ts && vitest run --config vitest.integration.config.ts tests/integration/oauth-lifecycle.test.ts",
     "test:connections": "vitest run --config vitest.integration.config.ts tests/integration/connections-workflow.test.ts",
     "test:analytics": "vitest run --config vitest.config.ts tests/unit/google-analytics.test.ts && vitest run --config vitest.integration.config.ts tests/integration/google-analytics-discovery.test.ts",
+    "test:analytics:realtime": "vitest run --config vitest.config.ts tests/unit/ga4-realtime.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

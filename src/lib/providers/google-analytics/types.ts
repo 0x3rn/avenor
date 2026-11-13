@@ -206,5 +206,6 @@ export interface Ga4RealtimeReportBundle {
   byScreenOrPage: Ga4RealtimeDimensionRow[];
   isEstimateNotice: string;
   rateLimited: boolean;
+  retryAfterSeconds: number | null;
   stale: boolean;
 }

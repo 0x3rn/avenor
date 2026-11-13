@@ -166,6 +166,29 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
           retryStrategy: "retry_after_header",
         },
       },
+      {
+        capabilityKey: "realtime_activity",
+        label: "Realtime Active Users (30-Min Estimate)",
+        description:
+          "Reads estimated active users, pageviews, and events over the rolling 30-minute window via GA4 Data API runRealtimeReport using only realtime-compatible dimensions.",
+        requiredScopes: ["https://www.googleapis.com/auth/analytics.readonly"],
+        requiredPermissions: ["Viewer"],
+        supportedGranularities: ["realtimeSnapshot"],
+        supportedDimensions: [
+          "minutesAgo",
+          "country",
+          "deviceCategory",
+          "unifiedScreenName",
+          "platform",
+        ],
+        expectedLatencyMinutes: 1,
+        freshnessWindowMinutes: 1,
+        rateLimitPolicy: {
+          requestsPerMinute: 30,
+          burstLimit: 5,
+          retryStrategy: "retry_after_header",
+        },
+      },
     ],
   },
   {
