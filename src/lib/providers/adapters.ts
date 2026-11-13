@@ -15,6 +15,7 @@ import {
 } from "@avenor/types";
 import { getProviderCatalogEntry, PROVIDER_CATALOG } from "./catalog";
 import { createGa4ReadOnlyAdapter } from "./google-analytics";
+import { createGscReadOnlyAdapter } from "./google-search-console";
 
 const SAMPLE_RESOURCES_BY_PROVIDER: Record<string, readonly DiscoveredExternalResource[]> = {
   "avenor-sandbox": [
@@ -454,6 +455,9 @@ const ADAPTER_REGISTRY = new Map<string, ReadOnlyProviderAdapter>();
 function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProviderAdapter {
   if (entry.providerKey === "ga4") {
     return createGa4ReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "gsc") {
+    return createGscReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

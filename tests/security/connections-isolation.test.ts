@@ -566,4 +566,64 @@ describe("Milestone 02 — Connection Health, Audit Trail, RBAC, Background Job 
       }),
     ).rejects.toMatchObject({ code: ERROR_CODES.FORBIDDEN });
   });
+
+  it("blocks cross-tenant Search Console discovery, site mapping, and token vault decryption", async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const ownerA = await registerUserWithDefaultOwnership({
+      name: "GSC Sec A",
+      email: `gsc-sec-a.${suffix}@avenor.test`,
+      password: "StrongPassword!2026",
+      organizationName: `GSC Sec Org A ${suffix}`,
+      workspaceName: `GSC Sec WS A ${suffix}`,
+    });
+    const sessionA = await resolveSessionByToken(ownerA.rawSessionToken);
+    const wsA = ownerA.context.activeWorkspace.id;
+
+    const ownerB = await registerUserWithDefaultOwnership({
+      name: "GSC Sec B",
+      email: `gsc-sec-b.${suffix}@avenor.test`,
+      password: "StrongPassword!2026",
+      organizationName: `GSC Sec Org B ${suffix}`,
+      workspaceName: `GSC Sec WS B ${suffix}`,
+    });
+    const sessionB = await resolveSessionByToken(ownerB.rawSessionToken);
+    const wsB = ownerB.context.activeWorkspace.id;
+
+    const projectB = await createLogicalProject(sessionB, wsB, {
+      name: "GSC Target B",
+      slug: `gsc-target-b-${suffix}`,
+    });
+
+    const redirectUri = "http://localhost:3000/api/connections/oauth/callback";
+    const initA = await initiateOAuthAuthorization({
+      session: sessionA,
+      workspaceId: wsA,
+      providerKey: "gsc",
+      authorizeEndpointUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      requestedScopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
+      redirectUri,
+    });
+    const connA = await completeOAuthCallback({
+      session: sessionA,
+      workspaceId: wsA,
+      providerKey: "gsc",
+      rawStateToken: initA.rawStateToken,
+      redirectUri,
+      authorizationCode: "code_gsc_sec_a",
+    });
+
+    const resA = await discoverAndPersistConnectionResources(sessionA, wsA, connA.connectionId);
+    expect(resA.some((r) => r.externalResourceId.startsWith("sc-domain:"))).toBe(true);
+
+    await expect(
+      discoverAndPersistConnectionResources(sessionB, wsB, connA.connectionId),
+    ).rejects.toMatchObject({ code: ERROR_CODES.FORBIDDEN });
+
+    await expect(
+      mapResourceToProjectEnvironment(sessionB, wsB, {
+        connectedResourceId: resA[0]?.id,
+        projectId: projectB.id,
+      }),
+    ).rejects.toMatchObject({ code: ERROR_CODES.FORBIDDEN });
+  });
 });

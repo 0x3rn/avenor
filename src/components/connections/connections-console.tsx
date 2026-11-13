@@ -181,6 +181,9 @@ export function ConnectionsConsole({
       const parentAccount = String(meta.parentAccountOrOrg ?? "").toLowerCase();
       const timeZone = String(meta.timeZone ?? "").toLowerCase();
       const currencyCode = String(meta.currencyCode ?? "").toLowerCase();
+      const hostDomain = String(meta.hostDomain ?? "").toLowerCase();
+      const propertyKind = String(meta.propertyKind ?? "").toLowerCase();
+      const permissionLevel = String(meta.permissionLevel ?? "").toLowerCase();
       const rawStreams =
         typeof meta.dataStreamsJson === "string"
           ? (() => {
@@ -203,6 +206,9 @@ export function ConnectionsConsole({
         parentAccount.includes(query) ||
         timeZone.includes(query) ||
         currencyCode.includes(query) ||
+        hostDomain.includes(query) ||
+        propertyKind.includes(query) ||
+        permissionLevel.includes(query) ||
         streams.includes(query)
       );
     });
@@ -1147,6 +1153,16 @@ export function ConnectionsConsole({
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            {meta.propertyKind ? (
+                              <Badge tone="neutral">
+                                {meta.propertyKind === "DOMAIN" ? "Domain Property" : "URL-Prefix"}
+                              </Badge>
+                            ) : null}
+                            {meta.accessTierLabel ? (
+                              <Badge tone={meta.verifiedAccess === false ? "warning" : "read-only"}>
+                                {String(meta.accessTierLabel)}
+                              </Badge>
+                            ) : null}
                             {timeZone ? <Badge tone="neutral">{timeZone}</Badge> : null}
                             {currencyCode ? <Badge tone="neutral">{currencyCode}</Badge> : null}
                             <Badge tone="read-only">
@@ -1154,6 +1170,11 @@ export function ConnectionsConsole({
                             </Badge>
                           </div>
                         </div>
+                        {typeof meta.overlapNote === "string" && meta.overlapNote ? (
+                          <div className="ml-6 rounded-[8px] border border-[#D4882A]/35 bg-[#D4882A]/8 px-2.5 py-2 text-[12px] text-[#7A4B11]">
+                            {meta.overlapNote}
+                          </div>
+                        ) : null}
                         {dataStreams.length > 0 ? (
                           <div className="ml-6 rounded-[8px] border border-[#DFE6F0] bg-[#F7F9FC] p-2.5 text-[12px]">
                             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-[#64748B]">

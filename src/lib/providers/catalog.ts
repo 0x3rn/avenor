@@ -198,9 +198,9 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     category: "search",
     authMode: "oauth2",
     availabilityStatus: "oauth_framework_ready",
-    targetMilestone: "M04",
+    targetMilestone: "M03",
     summary:
-      "Read-only verified site discovery and search performance capability contract via `webmasters.readonly`. Full query and page intelligence arrives in Milestone 04.",
+      "Read-only verified site discovery (Domain sc-domain: & URL-prefix properties) and search performance contract via `webmasters.readonly`.",
     readOnlyGuaranteeText:
       "Requests only `https://www.googleapis.com/auth/webmasters.readonly`. Avenor cannot submit sitemaps, request URL removals, or alter site verification ownership.",
     prohibitedOperationsSummary: [
