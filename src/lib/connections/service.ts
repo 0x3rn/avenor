@@ -22,7 +22,11 @@ import {
   roleHasPermission,
 } from "@avenor/types";
 import { z } from "zod";
-import { getProviderAdapter, getProviderCatalogEntry } from "@/lib/providers";
+import {
+  getProviderAdapter,
+  getProviderCatalogEntry,
+  sharedGoogleTelemetryCache,
+} from "@/lib/providers";
 
 export interface ConnectedResourceRecord {
   id: string;
@@ -496,7 +500,7 @@ export async function discoverAndPersistConnectionResources(
     grantedScopes: conn.granted_scopes,
   });
 
-  return withTransaction(
+  const savedResources = await withTransaction(
     async (client) => {
       const saved: ConnectedResourceRecord[] = [];
       for (const item of discovered) {
@@ -599,6 +603,9 @@ export async function discoverAndPersistConnectionResources(
     },
     { connectionString: options?.connectionString },
   );
+
+  sharedGoogleTelemetryCache.invalidateConnection(access.organizationId, workspaceId, connectionId);
+  return savedResources;
 }
 
 export async function mapResourceToProjectEnvironment(
@@ -624,7 +631,7 @@ export async function mapResourceToProjectEnvironment(
   }
   const input = parsed.data;
 
-  return withTransaction(
+  const mapping = await withTransaction(
     async (client) => {
       // 1. Verify connected_resource belongs to workspaceId and its connection is active
       const resourceRes = await dbQuery<{
@@ -836,6 +843,13 @@ export async function mapResourceToProjectEnvironment(
     },
     { connectionString: options?.connectionString },
   );
+
+  sharedGoogleTelemetryCache.invalidateConnection(
+    access.organizationId,
+    workspaceId,
+    mapping.providerConnectionId,
+  );
+  return mapping;
 }
 
 export async function unmapResourceFromProject(
@@ -852,7 +866,7 @@ export async function unmapResourceFromProject(
     requiredPermission: "connection:manage",
   });
 
-  return withTransaction(
+  const unmapped = await withTransaction(
     async (client) => {
       const existingRes = await dbQuery<{
         id: string;
@@ -922,6 +936,13 @@ export async function unmapResourceFromProject(
     },
     { connectionString: options?.connectionString },
   );
+
+  sharedGoogleTelemetryCache.invalidateConnection(
+    access.organizationId,
+    workspaceId,
+    unmapped.providerConnectionId,
+  );
+  return unmapped;
 }
 
 export async function validateConnectionHealth(

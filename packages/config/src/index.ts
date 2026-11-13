@@ -45,6 +45,9 @@ export const serverEnvSchema = z
         /^[0-9a-fA-F]{64}$/,
         "ENCRYPTION_MASTER_KEY must be a 64-character hexadecimal string (256-bit key).",
       ),
+    GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().trim().min(1).optional(),
+    GOOGLE_API_MODE: z.enum(["auto", "live", "sandbox"]).default("auto"),
     NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Avenor"),
     NEXT_PUBLIC_APP_URL: z
       .string()
@@ -132,6 +135,9 @@ export function validateServerEnv(
     BETTER_AUTH_SECRET: rawEnv.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: rawEnv.BETTER_AUTH_URL,
     ENCRYPTION_MASTER_KEY: rawEnv.ENCRYPTION_MASTER_KEY,
+    GOOGLE_CLIENT_ID: rawEnv.GOOGLE_CLIENT_ID?.trim() || undefined,
+    GOOGLE_CLIENT_SECRET: rawEnv.GOOGLE_CLIENT_SECRET?.trim() || undefined,
+    GOOGLE_API_MODE: rawEnv.GOOGLE_API_MODE,
     NEXT_PUBLIC_APP_NAME: rawEnv.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_APP_URL: rawEnv.NEXT_PUBLIC_APP_URL,
   });
@@ -169,4 +175,32 @@ export function assertNonProductionDestructiveAction(
       message: `Blocked destructive operation "${actionDescription}" in production environment.`,
     });
   }
+}
+
+export function isGoogleOAuthConfigured(
+  rawEnv: Record<string, string | undefined> = process.env,
+): boolean {
+  const clientId = rawEnv.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = rawEnv.GOOGLE_CLIENT_SECRET?.trim();
+  return Boolean(clientId && clientSecret);
+}
+
+export function resolveGoogleApiMode(
+  rawEnv: Record<string, string | undefined> = process.env,
+): "live" | "sandbox" {
+  const requested = rawEnv.GOOGLE_API_MODE?.trim().toLowerCase();
+  if (requested === "sandbox") {
+    return "sandbox";
+  }
+  if (requested === "live") {
+    if (!isGoogleOAuthConfigured(rawEnv)) {
+      throw new AppError({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message:
+          "GOOGLE_API_MODE is set to 'live', but GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not configured.",
+      });
+    }
+    return "live";
+  }
+  return isGoogleOAuthConfigured(rawEnv) ? "live" : "sandbox";
 }

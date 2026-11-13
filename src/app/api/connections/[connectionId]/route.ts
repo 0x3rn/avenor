@@ -1,7 +1,9 @@
 import {
   authorizeWorkspaceAccess,
+  createGoogleOAuthRefreshHandler,
   defaultSandboxTokenRefreshHandler,
   disconnectProviderConnection,
+  isGoogleProviderKey,
   refreshConnectionOAuthToken,
 } from "@avenor/auth";
 import { AppError, ERROR_CODES, type ReadOnlyProviderContext, toAppError } from "@avenor/types";
@@ -12,6 +14,7 @@ import {
   getWorkspaceConnectionDetail,
   validateConnectionHealth,
 } from "@/lib/connections";
+import { sharedGoogleTelemetryCache } from "@/lib/providers";
 
 export async function GET(
   request: NextRequest,
@@ -70,30 +73,49 @@ export async function POST(
           workspaceId,
           requiredPermission: "connection:manage",
         });
+        const googleRefresh = createGoogleOAuthRefreshHandler();
         const refreshResult = await refreshConnectionOAuthToken({
           organizationId: access.organizationId,
           workspaceId,
           connectionId,
           actorUserId: access.session.user.id,
-          ...(body.simulateInvalidGrant
-            ? {
-                refreshFn: async (params) =>
-                  defaultSandboxTokenRefreshHandler({
-                    ...params,
-                    refreshToken: "invalid_grant_revoked_token",
-                  }),
-              }
-            : {}),
+          refreshFn: async (params) => {
+            if (body.simulateInvalidGrant) {
+              return defaultSandboxTokenRefreshHandler({
+                ...params,
+                refreshToken: "invalid_grant_revoked_token",
+              });
+            }
+            if (isGoogleProviderKey(params.providerKey)) {
+              return googleRefresh(params);
+            }
+            return defaultSandboxTokenRefreshHandler(params);
+          },
         });
+        sharedGoogleTelemetryCache.invalidateConnection(
+          access.organizationId,
+          workspaceId,
+          connectionId,
+        );
         const connection = await getWorkspaceConnectionDetail(session, workspaceId, connectionId);
         return NextResponse.json({ refreshResult, connection }, { status: 200 });
       }
       case "disconnect": {
+        const access = await authorizeWorkspaceAccess({
+          session,
+          workspaceId,
+          requiredPermission: "connection:manage",
+        });
         const disconnectResult = await disconnectProviderConnection({
           session,
           workspaceId,
           connectionId,
         });
+        sharedGoogleTelemetryCache.invalidateConnection(
+          access.organizationId,
+          workspaceId,
+          connectionId,
+        );
         const connection = await getWorkspaceConnectionDetail(session, workspaceId, connectionId);
         return NextResponse.json({ disconnectResult, connection }, { status: 200 });
       }

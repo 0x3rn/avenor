@@ -91,6 +91,8 @@ export function ConnectionsConsole({
   );
   const [wizardSelectedScopes, setWizardSelectedScopes] = React.useState<string[]>([]);
   const [wizardReconnectId, setWizardReconnectId] = React.useState<string | undefined>(undefined);
+  const [wizardOauthMode, setWizardOauthMode] = React.useState<"live" | "sandbox">("sandbox");
+  const [wizardResourceSearch, setWizardResourceSearch] = React.useState("");
   const [wizardAuthState, setWizardAuthState] = React.useState<{
     rawStateToken: string;
     codeChallenge: string;
@@ -169,7 +171,44 @@ export function ConnectionsConsole({
     });
   }, [catalog, searchQuery, selectedCategory]);
 
-  async function refreshConnectionsList() {
+  const filteredWizardResources = React.useMemo(() => {
+    const query = wizardResourceSearch.trim().toLowerCase();
+    if (!query) {
+      return wizardDiscoveredResources;
+    }
+    return wizardDiscoveredResources.filter((res) => {
+      const meta = (res.metadata ?? {}) as Record<string, unknown>;
+      const parentAccount = String(meta.parentAccountOrOrg ?? "").toLowerCase();
+      const timeZone = String(meta.timeZone ?? "").toLowerCase();
+      const currencyCode = String(meta.currencyCode ?? "").toLowerCase();
+      const rawStreams =
+        typeof meta.dataStreamsJson === "string"
+          ? (() => {
+              try {
+                return JSON.parse(meta.dataStreamsJson) as Array<Record<string, unknown>>;
+              } catch {
+                return [];
+              }
+            })()
+          : Array.isArray(meta.dataStreams)
+            ? (meta.dataStreams as Array<Record<string, unknown>>)
+            : [];
+      const streams = rawStreams
+        .map((s) => `${s.displayName ?? ""} ${s.measurementId ?? ""} ${s.defaultUri ?? ""}`)
+        .join(" ")
+        .toLowerCase();
+      return (
+        res.displayName.toLowerCase().includes(query) ||
+        res.externalResourceId.toLowerCase().includes(query) ||
+        parentAccount.includes(query) ||
+        timeZone.includes(query) ||
+        currencyCode.includes(query) ||
+        streams.includes(query)
+      );
+    });
+  }, [wizardDiscoveredResources, wizardResourceSearch]);
+
+  const refreshConnectionsList = React.useCallback(async () => {
     const res = await fetch(`/api/connections?workspaceId=${encodeURIComponent(workspaceId)}`, {
       method: "GET",
       cache: "no-store",
@@ -178,7 +217,60 @@ export function ConnectionsConsole({
       const data = (await res.json()) as { connections: WorkspaceConnectionSummary[] };
       setConnections(data.connections);
     }
-  }
+  }, [workspaceId]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const oauthStatus = params.get("oauth");
+    const connectedId = params.get("connectionId") ?? params.get("connectedId");
+    const oauthErr = params.get("message") ?? params.get("oauthError");
+
+    if (oauthStatus === "error" || oauthErr) {
+      setGlobalFeedback({
+        tone: "error",
+        message: oauthErr ?? "Google OAuth authorization failed.",
+      });
+      window.history.replaceState({}, "", "/connections");
+      return;
+    }
+
+    if (oauthStatus === "connected" || connectedId) {
+      if (!connectedId) return;
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/connections/${encodeURIComponent(connectedId)}?workspaceId=${encodeURIComponent(workspaceId)}`,
+            { method: "GET", cache: "no-store" },
+          );
+          if (res.ok) {
+            const data = (await res.json()) as { connection?: WorkspaceConnectionDetail };
+            const detail = data.connection;
+            if (detail) {
+              setWizardProviderKey(detail.providerKey);
+              setWizardDisplayName(detail.displayName);
+              setWizardSelectedScopes([...detail.grantedScopes]);
+              setWizardConnectionId(detail.id);
+              setWizardDiscoveredResources(detail.connectedResources);
+              setWizardSelectedResourceId(detail.connectedResources[0]?.id ?? "");
+              setWizardResourceSearch("");
+              setWizardStep(4);
+              setWizardOpen(true);
+              setGlobalFeedback({
+                tone: "success",
+                message: `Authorized ${detail.displayName}. Select an external resource to map.`,
+              });
+              await refreshConnectionsList();
+            }
+          }
+        } catch {
+          // Leave console clean if connection detail lookup fails
+        } finally {
+          window.history.replaceState({}, "", "/connections");
+        }
+      })();
+    }
+  }, [refreshConnectionsList, workspaceId]);
 
   function openWizardForProvider(
     provider: ProviderCatalogEntry,
@@ -191,6 +283,8 @@ export function ConnectionsConsole({
     setWizardDisplayName(reconnectConn ? reconnectConn.displayName : provider.displayName);
     setWizardSelectedScopes([...provider.defaultScopes]);
     setWizardReconnectId(reconnectConn?.id);
+    setWizardOauthMode("sandbox");
+    setWizardResourceSearch("");
     setWizardAuthState(null);
     setWizardConnectionId(reconnectConn?.id ?? null);
     setWizardDiscoveredResources([]);
@@ -241,6 +335,7 @@ export function ConnectionsConsole({
         return;
       }
       setWizardAuthState(data.authorization);
+      setWizardOauthMode(data.oauthMode === "live" ? "live" : "sandbox");
       setWizardStep(3);
     } catch {
       setWizardError("Network error while initiating OAuth authorization.");
@@ -827,7 +922,12 @@ export function ConnectionsConsole({
                       OAuth 2.0 PKCE + CSRF State Prepared
                     </h3>
                   </div>
-                  <Badge tone="read-only">Challenge: {wizardAuthState.codeChallengeMethod}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge tone="read-only">
+                      {wizardOauthMode === "live" ? "Live Google OAuth" : "Sandbox Verification"}
+                    </Badge>
+                    <Badge tone="read-only">Challenge: {wizardAuthState.codeChallengeMethod}</Badge>
+                  </div>
                 </div>
                 <p className="text-[13px] text-[#30415D]">
                   Avenor generated a single-use cryptographic state token bound to your user session
@@ -855,27 +955,44 @@ export function ConnectionsConsole({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={wizardBusy}
-                  onClick={() => handleStep3CompleteConsent({ simulateDenied: true })}
-                  data-testid="wizard-simulate-consent-denied"
-                >
-                  Simulate Consent Denied
-                </Button>
-                <Button
-                  type="button"
-                  disabled={wizardBusy}
-                  onClick={() => handleStep3CompleteConsent({ simulateDenied: false })}
-                  data-testid="wizard-complete-oauth-consent"
-                >
-                  {wizardBusy
-                    ? "Exchanging Code & Encrypting Token..."
-                    : `Authorize ${selectedWizardProvider.shortName} (Read-Only)`}
-                </Button>
-              </div>
+              {wizardOauthMode === "live" ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-[12px] text-[#64748B]">
+                    Redirects securely to Google Accounts for read-only consent (
+                    {wizardSelectedScopes.join(", ")}).
+                  </span>
+                  <a
+                    href={wizardAuthState.authorizationUrl}
+                    className="inline-flex items-center justify-center rounded-[8px] bg-[#5157D9] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#4349C7]"
+                    data-testid="wizard-redirect-google-oauth"
+                  >
+                    Continue with Google Read-Only OAuth
+                    <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
+                  </a>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={wizardBusy}
+                    onClick={() => handleStep3CompleteConsent({ simulateDenied: true })}
+                    data-testid="wizard-simulate-consent-denied"
+                  >
+                    Simulate Consent Denied
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={wizardBusy}
+                    onClick={() => handleStep3CompleteConsent({ simulateDenied: false })}
+                    data-testid="wizard-complete-oauth-consent"
+                  >
+                    {wizardBusy
+                      ? "Exchanging Code & Encrypting Token..."
+                      : `Authorize ${selectedWizardProvider.shortName} (Read-Only)`}
+                  </Button>
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -909,48 +1026,163 @@ export function ConnectionsConsole({
                 </Button>
               </div>
 
+              {wizardDiscoveredResources.length > 0 ? (
+                <div className="relative">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#64748B]"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="search"
+                    value={wizardResourceSearch}
+                    onChange={(e) => setWizardResourceSearch(e.target.value)}
+                    placeholder="Filter by property name, ID, account, timezone, currency, or G- measurement ID..."
+                    className="w-full rounded-[8px] border border-[#DFE6F0] bg-white py-2 pl-9 pr-3 text-[13px] text-[#17243A] placeholder:text-[#64748B] focus:border-[#5157D9] focus:outline-none"
+                    data-testid="wizard-resource-search-input"
+                  />
+                </div>
+              ) : null}
+
               {wizardDiscoveredResources.length === 0 ? (
-                <div className="rounded-[12px] border border-[#B86B11]/30 bg-[#B86B11]/8 p-4 text-[13px] text-[#B86B11]">
-                  No resources were returned. Verify that the discovery read-only scope was granted,
-                  then re-scan or proceed to health validation.
+                <div
+                  className="rounded-[12px] border border-[#B86B11]/30 bg-[#B86B11]/8 p-4 text-[13px] text-[#B86B11]"
+                  data-testid="wizard-empty-resources-banner"
+                >
+                  No external resources were returned by {selectedWizardProvider.displayName}. The
+                  authorized Google account may not have read access to any property yet, or a
+                  required read-only scope was declined. Avenor never substitutes fabricated sample
+                  properties—verify access and click Re-scan Resources.
+                </div>
+              ) : filteredWizardResources.length === 0 ? (
+                <div className="flex items-center justify-between rounded-[12px] border border-[#DFE6F0] bg-[#F7F9FC] p-4 text-[13px] text-[#30415D]">
+                  <span>No discovered resources match "{wizardResourceSearch}".</span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setWizardResourceSearch("")}
+                  >
+                    Clear filter
+                  </Button>
                 </div>
               ) : (
                 <div
                   className="grid grid-cols-1 gap-3"
                   data-testid="wizard-discovered-resources-list"
                 >
-                  {wizardDiscoveredResources.map((res) => {
+                  {filteredWizardResources.map((res) => {
                     const isSelected = wizardSelectedResourceId === res.id;
+                    const meta = (res.metadata ?? {}) as Record<string, unknown>;
+                    const timeZone =
+                      typeof meta.timeZone === "string" && meta.timeZone ? meta.timeZone : null;
+                    const currencyCode =
+                      typeof meta.currencyCode === "string" && meta.currencyCode
+                        ? meta.currencyCode
+                        : null;
+                    const parentAccount =
+                      typeof meta.parentAccountOrOrg === "string" && meta.parentAccountOrOrg
+                        ? meta.parentAccountOrOrg
+                        : null;
+                    const dataStreams: Array<{
+                      streamId?: string;
+                      displayName?: string;
+                      type?: string;
+                      measurementId?: string | null;
+                      defaultUri?: string | null;
+                    }> =
+                      typeof meta.dataStreamsJson === "string"
+                        ? (() => {
+                            try {
+                              return JSON.parse(meta.dataStreamsJson) as Array<{
+                                streamId?: string;
+                                displayName?: string;
+                                type?: string;
+                                measurementId?: string | null;
+                                defaultUri?: string | null;
+                              }>;
+                            } catch {
+                              return [];
+                            }
+                          })()
+                        : Array.isArray(meta.dataStreams)
+                          ? (meta.dataStreams as Array<{
+                              streamId?: string;
+                              displayName?: string;
+                              type?: string;
+                              measurementId?: string | null;
+                              defaultUri?: string | null;
+                            }>)
+                          : [];
                     return (
                       <label
                         key={res.id}
-                        className={`flex cursor-pointer items-start justify-between gap-3 rounded-[10px] border p-3.5 transition ${
+                        className={`flex cursor-pointer flex-col gap-2.5 rounded-[10px] border p-3.5 transition ${
                           isSelected
                             ? "border-[#5157D9] bg-[#5157D9]/5"
                             : "border-[#DFE6F0] bg-white"
                         }`}
                         data-testid={`discovered-resource-card-${res.externalResourceId}`}
                       >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="radio"
-                            name="wizardSelectedResource"
-                            checked={isSelected}
-                            onChange={() => setWizardSelectedResourceId(res.id)}
-                            className="mt-1"
-                          />
-                          <div>
-                            <p className="text-[14px] font-semibold text-[#17243A]">
-                              {res.displayName}
-                            </p>
-                            <p className="font-mono text-[12px] text-[#64748B]">
-                              ID: {res.externalResourceId} • Type: {res.resourceType}
-                            </p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              name="wizardSelectedResource"
+                              checked={isSelected}
+                              onChange={() => setWizardSelectedResourceId(res.id)}
+                              className="mt-1"
+                            />
+                            <div>
+                              <p className="text-[14px] font-semibold text-[#17243A]">
+                                {res.displayName}
+                              </p>
+                              <p className="font-mono text-[12px] text-[#64748B]">
+                                Property ID: {res.externalResourceId} • Type: {res.resourceType}
+                              </p>
+                              {parentAccount ? (
+                                <p className="text-[12px] text-[#64748B]">
+                                  Account: <span className="text-[#30415D]">{parentAccount}</span>
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            {timeZone ? <Badge tone="neutral">{timeZone}</Badge> : null}
+                            {currencyCode ? <Badge tone="neutral">{currencyCode}</Badge> : null}
+                            <Badge tone="read-only">
+                              {String(meta.environmentHint ?? "READ_ONLY")}
+                            </Badge>
                           </div>
                         </div>
-                        <Badge tone="read-only">
-                          {String(res.metadata?.environmentHint ?? "READ_ONLY")}
-                        </Badge>
+                        {dataStreams.length > 0 ? (
+                          <div className="ml-6 rounded-[8px] border border-[#DFE6F0] bg-[#F7F9FC] p-2.5 text-[12px]">
+                            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-[#64748B]">
+                              Child Data Streams ({dataStreams.length}) — distinct from GA4 Property
+                              ID
+                            </p>
+                            <div className="space-y-1">
+                              {dataStreams.map((stream, idx) => (
+                                <div
+                                  key={stream.streamId ?? `${res.id}-stream-${idx}`}
+                                  className="flex flex-wrap items-center justify-between gap-2 text-[#30415D]"
+                                >
+                                  <span className="font-medium text-[#17243A]">
+                                    {stream.displayName ?? "Data Stream"}{" "}
+                                    {stream.type ? `(${stream.type})` : ""}
+                                  </span>
+                                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-[#64748B]">
+                                    {stream.measurementId ? (
+                                      <span className="rounded bg-white px-1.5 py-0.5 text-[#17243A] border border-[#DFE6F0]">
+                                        {stream.measurementId}
+                                      </span>
+                                    ) : null}
+                                    {stream.defaultUri ? <span>{stream.defaultUri}</span> : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                       </label>
                     );
                   })}

@@ -14,6 +14,7 @@ import {
   type ReadOnlyProviderContext,
 } from "@avenor/types";
 import { getProviderCatalogEntry, PROVIDER_CATALOG } from "./catalog";
+import { createGa4ReadOnlyAdapter } from "./google-analytics";
 
 const SAMPLE_RESOURCES_BY_PROVIDER: Record<string, readonly DiscoveredExternalResource[]> = {
   "avenor-sandbox": [
@@ -450,8 +451,15 @@ export class DeterministicReadOnlyProviderAdapter implements ReadOnlyProviderAda
 
 const ADAPTER_REGISTRY = new Map<string, ReadOnlyProviderAdapter>();
 
+function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProviderAdapter {
+  if (entry.providerKey === "ga4") {
+    return createGa4ReadOnlyAdapter(entry);
+  }
+  return new DeterministicReadOnlyProviderAdapter(entry);
+}
+
 for (const entry of PROVIDER_CATALOG) {
-  const adapter = new DeterministicReadOnlyProviderAdapter(entry);
+  const adapter = instantiateProviderAdapter(entry);
   assertReadOnlyAdapterContract(adapter);
   ADAPTER_REGISTRY.set(entry.providerKey, adapter);
 }
@@ -472,7 +480,7 @@ export function getProviderAdapter(providerKey: string): ReadOnlyProviderAdapter
     });
   }
 
-  const adapter = new DeterministicReadOnlyProviderAdapter(catalogEntry);
+  const adapter = instantiateProviderAdapter(catalogEntry);
   assertReadOnlyAdapterContract(adapter);
   ADAPTER_REGISTRY.set(providerKey, adapter);
   return adapter;

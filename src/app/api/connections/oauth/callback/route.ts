@@ -1,4 +1,10 @@
-import { completeOAuthCallback, defaultSandboxTokenExchangeHandler } from "@avenor/auth";
+import {
+  completeOAuthCallback,
+  createGoogleOAuthTokenExchangeHandler,
+  defaultSandboxTokenExchangeHandler,
+  isGoogleProviderKey,
+  resolvePendingOAuthStateDetails,
+} from "@avenor/auth";
 import { toAppError } from "@avenor/types";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth-server";
@@ -28,6 +34,10 @@ export async function POST(request: NextRequest) {
     const redirectUri =
       body.redirectUri ?? `${request.nextUrl.origin}/api/connections/oauth/callback`;
 
+    const googleExchange = isGoogleProviderKey(providerKey)
+      ? createGoogleOAuthTokenExchangeHandler()
+      : null;
+
     const callbackResult = await completeOAuthCallback({
       session,
       workspaceId,
@@ -39,7 +49,9 @@ export async function POST(request: NextRequest) {
       oauthError: body.error,
       oauthErrorDescription: body.errorDescription,
       exchangeTokenFn: async (params) => {
-        const base = await defaultSandboxTokenExchangeHandler(params);
+        const base = googleExchange
+          ? await googleExchange(params)
+          : await defaultSandboxTokenExchangeHandler(params);
         return {
           ...base,
           grantedScopes:
@@ -77,16 +89,34 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const url = request.nextUrl;
+  const redirectUrl = new URL("/connections", url.origin);
+
   try {
     const session = await getServerSession();
-    const searchParams = request.nextUrl.searchParams;
-    const workspaceId = searchParams.get("workspaceId") ?? session?.activeWorkspace.id ?? "";
-    const providerKey = searchParams.get("providerKey") ?? "avenor-sandbox";
+    if (!session) {
+      return NextResponse.redirect(new URL("/login", url.origin));
+    }
+
+    const searchParams = url.searchParams;
     const rawStateToken = searchParams.get("state") ?? "";
     const authorizationCode = searchParams.get("code") ?? undefined;
     const oauthError = searchParams.get("error") ?? undefined;
     const oauthErrorDescription = searchParams.get("error_description") ?? undefined;
-    const redirectUri = `${request.nextUrl.origin}/api/connections/oauth/callback`;
+
+    if (!rawStateToken) {
+      const msg = "Missing OAuth state parameter in callback.";
+      redirectUrl.searchParams.set("oauthError", msg);
+      redirectUrl.searchParams.set("oauth", "error");
+      redirectUrl.searchParams.set("message", msg);
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    const pending = await resolvePendingOAuthStateDetails(rawStateToken);
+    const workspaceId =
+      pending?.workspaceId ?? searchParams.get("workspaceId") ?? session.activeWorkspace.id;
+    const providerKey = pending?.providerKey ?? searchParams.get("providerKey") ?? "avenor-sandbox";
+    const redirectUri = pending?.redirectUri ?? `${url.origin}/api/connections/oauth/callback`;
 
     const callbackResult = await completeOAuthCallback({
       session,
@@ -97,6 +127,9 @@ export async function GET(request: NextRequest) {
       authorizationCode,
       oauthError,
       oauthErrorDescription,
+      exchangeTokenFn: isGoogleProviderKey(providerKey)
+        ? createGoogleOAuthTokenExchangeHandler()
+        : undefined,
     });
 
     try {
@@ -106,16 +139,20 @@ export async function GET(request: NextRequest) {
         callbackResult.connectionId,
       );
     } catch {
-      // Non-fatal if discovery scope missing
+      // Resource discovery failure during callback still preserves the connection;
+      // the user can inspect capability/health state in the console.
     }
 
-    const redirectUrl = new URL("/connections", request.nextUrl.origin);
     redirectUrl.searchParams.set("connectedId", callbackResult.connectionId);
+    redirectUrl.searchParams.set("oauth", "connected");
+    redirectUrl.searchParams.set("connectionId", callbackResult.connectionId);
+    redirectUrl.searchParams.set("provider", providerKey);
     return NextResponse.redirect(redirectUrl);
   } catch (err) {
     const appErr = toAppError(err);
-    const redirectUrl = new URL("/connections", request.nextUrl.origin);
     redirectUrl.searchParams.set("oauthError", appErr.message);
+    redirectUrl.searchParams.set("oauth", "error");
+    redirectUrl.searchParams.set("message", appErr.message);
     return NextResponse.redirect(redirectUrl);
   }
 }

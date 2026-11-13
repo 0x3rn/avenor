@@ -1,8 +1,11 @@
 import {
   authenticateUser,
   authorizeWorkspaceAccess,
+  buildGoogleAuthorizeUrl,
   completeOAuthCallback,
   completeUserOnboarding,
+  createGoogleOAuthRefreshHandler,
+  createGoogleOAuthTokenExchangeHandler,
   createLogicalProject,
   createPasswordResetRequest,
   createProjectEnvironment,
@@ -13,9 +16,11 @@ import {
   getLogicalProjectById,
   getWorkspaceGovernanceDetails,
   initiateOAuthAuthorization,
+  isGoogleProviderKey,
   listWorkspaceProjects,
   refreshConnectionOAuthToken,
   registerUserWithDefaultOwnership,
+  resolvePendingOAuthStateDetails,
   resolveSessionByToken,
   revokeSessionByToken,
   SESSION_COOKIE_NAME,
@@ -26,6 +31,7 @@ import {
   updateWorkspaceSettings,
   verifyEmailToken,
 } from "@avenor/auth";
+import { resolveGoogleApiMode } from "@avenor/config";
 import { AppError, ERROR_CODES, type ReadOnlyProviderContext, toAppError } from "@avenor/types";
 import {
   discoverAndPersistConnectionResources,
@@ -35,7 +41,11 @@ import {
   unmapResourceFromProject,
   validateConnectionHealth,
 } from "../src/lib/connections";
-import { getProviderCatalogEntry, PROVIDER_CATALOG } from "../src/lib/providers";
+import {
+  getProviderCatalogEntry,
+  PROVIDER_CATALOG,
+  sharedGoogleTelemetryCache,
+} from "../src/lib/providers";
 
 export interface CloudflareWorkerEnv {
   ASSETS?: {
@@ -363,7 +373,59 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         operation: body.reconnectConnectionId ? "reconsent" : "connect",
         targetConnectionId: body.reconnectConnectionId,
       });
-      return jsonResponse({ authorization }, 201);
+      const oauthMode = isGoogleProviderKey(providerKey) ? resolveGoogleApiMode() : "sandbox";
+      const finalAuthorization =
+        isGoogleProviderKey(providerKey) && oauthMode === "live"
+          ? {
+              ...authorization,
+              authorizationUrl: buildGoogleAuthorizeUrl(authorization.authorizationUrl, {
+                loginHint: session?.user.email,
+              }),
+            }
+          : authorization;
+      return jsonResponse({ authorization: finalAuthorization, oauthMode }, 201);
+    }
+
+    if (pathname === "/api/connections/oauth/callback" && method === "GET") {
+      const session = await getWorkerSession(request);
+      if (!session) {
+        return Response.redirect(new URL("/login", url.origin).toString(), 302);
+      }
+      const rawStateToken = url.searchParams.get("state") ?? "";
+      const pending = await resolvePendingOAuthStateDetails(rawStateToken);
+      const dest = new URL("/connections", url.origin);
+      if (!pending) {
+        dest.searchParams.set("oauth", "error");
+        dest.searchParams.set("message", "OAuth authorization state was not found or expired.");
+        return Response.redirect(dest.toString(), 302);
+      }
+      const callbackResult = await completeOAuthCallback({
+        session,
+        workspaceId: pending.workspaceId,
+        providerKey: pending.providerKey,
+        rawStateToken,
+        redirectUri: pending.redirectUri,
+        authorizationCode: url.searchParams.get("code") ?? "",
+        oauthError: url.searchParams.get("error") ?? undefined,
+        oauthErrorDescription: url.searchParams.get("error_description") ?? undefined,
+        exchangeTokenFn: isGoogleProviderKey(pending.providerKey)
+          ? createGoogleOAuthTokenExchangeHandler()
+          : undefined,
+      });
+      try {
+        await discoverAndPersistConnectionResources(
+          session,
+          pending.workspaceId,
+          callbackResult.connectionId,
+        );
+      } catch {
+        // Diagnostics remain available in the connection drawer
+      }
+      dest.searchParams.set("connectedId", callbackResult.connectionId);
+      dest.searchParams.set("oauth", "connected");
+      dest.searchParams.set("connectionId", callbackResult.connectionId);
+      dest.searchParams.set("provider", pending.providerKey);
+      return Response.redirect(dest.toString(), 302);
     }
 
     if (pathname === "/api/connections/oauth/callback" && method === "POST") {
@@ -386,6 +448,9 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       const rawStateToken = body.rawStateToken ?? body.stateToken ?? "";
       const providerKey = body.providerKey ?? "avenor-sandbox";
       const redirectUri = body.redirectUri ?? `${url.origin}/api/connections/oauth/callback`;
+      const googleExchange = isGoogleProviderKey(providerKey)
+        ? createGoogleOAuthTokenExchangeHandler()
+        : null;
       const callbackResult = await completeOAuthCallback({
         session,
         workspaceId,
@@ -397,7 +462,9 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         oauthError: body.error,
         oauthErrorDescription: body.errorDescription,
         exchangeTokenFn: async (params) => {
-          const base = await defaultSandboxTokenExchangeHandler(params);
+          const base = googleExchange
+            ? await googleExchange(params)
+            : await defaultSandboxTokenExchangeHandler(params);
           return {
             ...base,
             grantedScopes:
@@ -508,21 +575,30 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
               workspaceId,
               requiredPermission: "connection:manage",
             });
+            const googleRefresh = createGoogleOAuthRefreshHandler();
             const refreshResult = await refreshConnectionOAuthToken({
               organizationId: access.organizationId,
               workspaceId,
               connectionId,
               actorUserId: access.session.user.id,
-              ...(body.simulateInvalidGrant
-                ? {
-                    refreshFn: async (params) =>
-                      defaultSandboxTokenRefreshHandler({
-                        ...params,
-                        refreshToken: "invalid_grant_revoked_token",
-                      }),
-                  }
-                : {}),
+              refreshFn: async (params) => {
+                if (body.simulateInvalidGrant) {
+                  return defaultSandboxTokenRefreshHandler({
+                    ...params,
+                    refreshToken: "invalid_grant_revoked_token",
+                  });
+                }
+                if (isGoogleProviderKey(params.providerKey)) {
+                  return googleRefresh(params);
+                }
+                return defaultSandboxTokenRefreshHandler(params);
+              },
             });
+            sharedGoogleTelemetryCache.invalidateConnection(
+              access.organizationId,
+              workspaceId,
+              connectionId,
+            );
             const connection = await getWorkspaceConnectionDetail(
               session,
               workspaceId,
@@ -531,11 +607,21 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
             return jsonResponse({ refreshResult, connection }, 200);
           }
           case "disconnect": {
+            const access = await authorizeWorkspaceAccess({
+              session,
+              workspaceId,
+              requiredPermission: "connection:manage",
+            });
             const disconnectResult = await disconnectProviderConnection({
               session,
               workspaceId,
               connectionId,
             });
+            sharedGoogleTelemetryCache.invalidateConnection(
+              access.organizationId,
+              workspaceId,
+              connectionId,
+            );
             const connection = await getWorkspaceConnectionDetail(
               session,
               workspaceId,

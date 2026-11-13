@@ -1,4 +1,9 @@
-import { initiateOAuthAuthorization } from "@avenor/auth";
+import {
+  buildGoogleAuthorizeUrl,
+  initiateOAuthAuthorization,
+  isGoogleProviderKey,
+} from "@avenor/auth";
+import { resolveGoogleApiMode } from "@avenor/config";
 import { toAppError } from "@avenor/types";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth-server";
@@ -39,7 +44,18 @@ export async function POST(request: NextRequest) {
       targetConnectionId: body.reconnectConnectionId,
     });
 
-    return NextResponse.json({ authorization }, { status: 201 });
+    const oauthMode = isGoogleProviderKey(providerKey) ? resolveGoogleApiMode() : "sandbox";
+    const finalAuthorization =
+      isGoogleProviderKey(providerKey) && oauthMode === "live"
+        ? {
+            ...authorization,
+            authorizationUrl: buildGoogleAuthorizeUrl(authorization.authorizationUrl, {
+              loginHint: session?.user.email,
+            }),
+          }
+        : authorization;
+
+    return NextResponse.json({ authorization: finalAuthorization, oauthMode }, { status: 201 });
   } catch (err) {
     const appErr = toAppError(err);
     return NextResponse.json(appErr.toPublicJson(), { status: appErr.statusCode });

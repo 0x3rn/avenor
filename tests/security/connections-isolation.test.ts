@@ -502,4 +502,68 @@ describe("Milestone 02 — Connection Health, Audit Trail, RBAC, Background Job 
     expect(rawAuditText).not.toContain("avn_ro_refresh_");
     expect(rawAuditText).not.toContain("code_verifier");
   });
+
+  it("blocks cross-tenant GA4 resource discovery, cross-workspace GA4 property mapping, and cross-tenant vault decryption", async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    const ownerA = await registerUserWithDefaultOwnership({
+      name: "GA4 Sec Owner A",
+      email: `ga4-sec-a-${suffix}@avenor.test`,
+      password: "Ga4SecPassword!A123",
+      organizationName: `GA4 Sec Org A ${suffix}`,
+      workspaceName: `GA4 Sec WS A ${suffix}`,
+    });
+    const ownerB = await registerUserWithDefaultOwnership({
+      name: "GA4 Sec Owner B",
+      email: `ga4-sec-b-${suffix}@avenor.test`,
+      password: "Ga4SecPassword!B123",
+      organizationName: `GA4 Sec Org B ${suffix}`,
+      workspaceName: `GA4 Sec WS B ${suffix}`,
+    });
+
+    const sessionA = await resolveSessionByToken(ownerA.rawSessionToken);
+    const sessionB = await resolveSessionByToken(ownerB.rawSessionToken);
+    expect(sessionA).not.toBeNull();
+    expect(sessionB).not.toBeNull();
+
+    const wsA = ownerA.context.activeWorkspace.id;
+    const wsB = ownerB.context.activeWorkspace.id;
+
+    const projectB = await createLogicalProject(sessionB, wsB, {
+      name: "Tenant B Target",
+      slug: `ga4-target-b-${suffix}`,
+    });
+
+    const redirectUri = "http://localhost:3000/api/connections/oauth/callback";
+    const initA = await initiateOAuthAuthorization({
+      session: sessionA,
+      workspaceId: wsA,
+      providerKey: "ga4",
+      authorizeEndpointUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      requestedScopes: ["https://www.googleapis.com/auth/analytics.readonly"],
+      redirectUri,
+    });
+    const connA = await completeOAuthCallback({
+      session: sessionA,
+      workspaceId: wsA,
+      providerKey: "ga4",
+      rawStateToken: initA.rawStateToken,
+      redirectUri,
+      authorizationCode: "code_ga4_sec_a",
+    });
+
+    const resA = await discoverAndPersistConnectionResources(sessionA, wsA, connA.connectionId);
+    expect(resA.length).toBeGreaterThan(0);
+
+    await expect(
+      discoverAndPersistConnectionResources(sessionB, wsB, connA.connectionId),
+    ).rejects.toMatchObject({ code: ERROR_CODES.FORBIDDEN });
+
+    await expect(
+      mapResourceToProjectEnvironment(sessionB, wsB, {
+        connectedResourceId: resA[0]?.id,
+        projectId: projectB.id,
+      }),
+    ).rejects.toMatchObject({ code: ERROR_CODES.FORBIDDEN });
+  });
 });
