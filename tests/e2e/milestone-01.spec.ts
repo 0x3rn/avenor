@@ -1,7 +1,11 @@
+import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 
-const ARTIFACT_DIR = "C:/Users/User/.gemini/antigravity/brain/8794b1c7-b8ca-424c-8f1a-1cd01113be75";
+const ARTIFACT_DIR =
+  process.env.PLAYWRIGHT_ARTIFACT_DIR ??
+  "C:/Users/divin/.gemini/antigravity/brain/b0fbef27-67c6-4272-8716-c2bb79f3fd59";
+fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
 
 test.describe("Milestone 01 — Signal Atlas E2E Journey & Multi-Viewport Verification (THE-116)", () => {
   test("completes full user journey: public home -> signup -> onboarding -> project & environment management -> settings -> multi-workspace -> archive/restore -> signout/signin + responsive viewports", async ({

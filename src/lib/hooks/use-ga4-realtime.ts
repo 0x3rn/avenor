@@ -55,6 +55,8 @@ export function useGa4Realtime(options: UseGa4RealtimeOptions) {
   );
 
   const inFlightRef = useRef<boolean>(false);
+  const dataRef = useRef<ProjectGa4RealtimeResponseDto | null>(data);
+  dataRef.current = data;
 
   const fetchRealtime = useCallback(
     async (manualRefresh = false) => {
@@ -63,7 +65,8 @@ export function useGa4Realtime(options: UseGa4RealtimeOptions) {
       }
       inFlightRef.current = true;
       setIsRefreshing(true);
-      if (!data) {
+      const currentData = dataRef.current;
+      if (!currentData) {
         setIsLoading(true);
       }
       setErrorMessage(null);
@@ -95,15 +98,15 @@ export function useGa4Realtime(options: UseGa4RealtimeOptions) {
           return;
         }
 
-        if (res.status === 429 && payload.realtime === null && data?.realtime) {
+        if (res.status === 429 && payload.realtime === null && currentData?.realtime) {
           // Preserve visible last-known data cleanly flagged stale + rate-limited
           const retryAfter = Number.parseInt(res.headers.get("Retry-After") ?? "45", 10) || 45;
           setData({
-            ...data,
+            ...currentData,
             uxState: "rate_limited",
             message: `GA4 Realtime API quota limit reached; pausing polling for ${retryAfter}s while displaying stale cached reading.`,
             realtime: {
-              ...data.realtime,
+              ...currentData.realtime,
               rateLimited: true,
               retryAfterSeconds: retryAfter,
               stale: true,
@@ -128,7 +131,7 @@ export function useGa4Realtime(options: UseGa4RealtimeOptions) {
         setIsRefreshing(false);
       }
     },
-    [data, enabled, environmentId, projectId, resourceId],
+    [enabled, environmentId, projectId, resourceId],
   );
 
   useEffect(() => {

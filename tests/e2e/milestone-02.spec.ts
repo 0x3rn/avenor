@@ -1,7 +1,11 @@
+import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 
-const ARTIFACT_DIR = "C:/Users/User/.gemini/antigravity/brain/8794b1c7-b8ca-424c-8f1a-1cd01113be75";
+const ARTIFACT_DIR =
+  process.env.PLAYWRIGHT_ARTIFACT_DIR ??
+  "C:/Users/divin/.gemini/antigravity/brain/b0fbef27-67c6-4272-8716-c2bb79f3fd59";
+fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
 
 test.describe("Milestone 02 — Read-Only Provider Framework & Security E2E Journey (THE-120 / THE-121)", () => {
   test("completes full provider catalog, 7-step PKCE connection wizard, resource-to-project/environment mapping, health diagnostics, token refresh, multi-viewport checks, and disconnect", async ({

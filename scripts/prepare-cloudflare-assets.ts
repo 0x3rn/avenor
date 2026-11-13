@@ -43,9 +43,14 @@ function copyAppHtmlRecursive(appServerDir: string, targetBaseDir: string, relat
       continue;
     }
 
+    const normalizedRelativeDir = relativeDir
+      .split(path.sep)
+      .map((segment) => (segment === "[projectId]" ? "__project_detail__" : segment))
+      .join(path.sep);
+
     const normalizedName =
       entry.name === "[projectId].html" ? "__project_detail__.html" : entry.name;
-    const destDir = path.join(targetBaseDir, relativeDir);
+    const destDir = path.join(targetBaseDir, normalizedRelativeDir);
     fs.mkdirSync(destDir, { recursive: true });
     fs.copyFileSync(fullPath, path.join(destDir, normalizedName));
   }

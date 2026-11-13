@@ -285,14 +285,40 @@ export function ProjectDetailView({
           definition="Sessions, users, and traffic acquisition for this environment."
           state="unconnected"
           sourceLabel="GA4"
-          freshnessLabel="Map GA4 in Milestone 03"
+          freshnessLabel="GA4 Data API + Realtime"
+          actionSlot={
+            <Link
+              href={`/projects/${project.id}/audience${
+                activeEnvironment
+                  ? `?environmentId=${encodeURIComponent(activeEnvironment.id)}`
+                  : ""
+              }`}
+              data-testid="project-open-audience-report"
+              className="text-[12px] font-semibold text-[#5157D9] hover:underline"
+            >
+              Open Audience Report →
+            </Link>
+          }
         />
         <MetricCard
           title={`${selectedEnvKind} Search Visibility`}
           definition="Organic search impressions, clicks, and average ranking position."
           state="unconnected"
           sourceLabel="Search Console"
-          freshnessLabel="Map GSC in Milestone 03"
+          freshnessLabel="Search Analytics v3"
+          actionSlot={
+            <Link
+              href={`/projects/${project.id}/search${
+                activeEnvironment
+                  ? `?environmentId=${encodeURIComponent(activeEnvironment.id)}`
+                  : ""
+              }`}
+              data-testid="project-open-search-report"
+              className="text-[12px] font-semibold text-[#168E99] hover:underline"
+            >
+              Open Search Report →
+            </Link>
+          }
         />
         <MetricCard
           title={`${selectedEnvKind} Cloud Spend`}

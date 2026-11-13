@@ -46,7 +46,15 @@ import {
   PROVIDER_CATALOG,
   sharedGoogleTelemetryCache,
 } from "../src/lib/providers";
-import { getProjectGa4RealtimeTelemetry } from "../src/lib/reports/ga4-service";
+import {
+  getProjectGa4RealtimeTelemetry,
+  getProjectGa4StandardTelemetry,
+  parseGa4ReportSearchParams,
+} from "../src/lib/reports/ga4-service";
+import {
+  getProjectSearchConsoleTelemetry,
+  parseSearchConsoleReportParams,
+} from "../src/lib/reports/search-console-service";
 
 export interface CloudflareWorkerEnv {
   ASSETS?: {
@@ -318,6 +326,24 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         );
         return jsonResponse({ environment }, 200);
       }
+    }
+
+    const projectAnalyticsMatch = pathname.match(/^\/api\/projects\/([^/]+)\/analytics$/);
+    if (projectAnalyticsMatch && method === "GET") {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectAnalyticsMatch[1]);
+      const parsed = parseGa4ReportSearchParams(url.searchParams);
+      const result = await getProjectGa4StandardTelemetry(session, projectId, parsed);
+      return jsonResponse(result.payload, result.statusCode);
+    }
+
+    const projectGscMatch = pathname.match(/^\/api\/projects\/([^/]+)\/search-console$/);
+    if (projectGscMatch && method === "GET") {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectGscMatch[1]);
+      const parsed = parseSearchConsoleReportParams(url.searchParams);
+      const result = await getProjectSearchConsoleTelemetry(session, projectId, parsed);
+      return jsonResponse(result.payload, result.statusCode);
     }
 
     const projectDetailMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);
@@ -687,6 +713,16 @@ export default {
       const assetResponse = await env.ASSETS.fetch(request);
       if (assetResponse.status !== 404) {
         return assetResponse;
+      }
+
+      if (/^\/projects\/[^/]+\/audience\/?$/.test(url.pathname)) {
+        const fallbackUrl = new URL("/projects/__project_detail__/audience.html", url.origin);
+        return env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
+      }
+
+      if (/^\/projects\/[^/]+\/search\/?$/.test(url.pathname)) {
+        const fallbackUrl = new URL("/projects/__project_detail__/search.html", url.origin);
+        return env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
       }
 
       if (/^\/projects\/[^/]+\/?$/.test(url.pathname) && url.pathname !== "/projects/new") {

@@ -69,6 +69,18 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
     matchPrefix: "/projects",
   },
   {
+    label: "Audience & Traffic",
+    href: "/audience",
+    icon: BarChart3,
+    matchPrefix: "/audience",
+  },
+  {
+    label: "Search Visibility",
+    href: "/search",
+    icon: Search,
+    matchPrefix: "/search",
+  },
+  {
     label: "Guided Setup",
     href: "/onboarding",
     icon: Compass,
@@ -89,8 +101,6 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
 ];
 
 const PLANNED_SIGNAL_MODULES = [
-  { label: "Audience & Traffic", milestone: "M03", icon: BarChart3 },
-  { label: "Search Visibility", milestone: "M03", icon: Search },
   { label: "Cloud Costs", milestone: "M05", icon: Wallet },
   { label: "Backend & Databases", milestone: "M06", icon: Database },
   { label: "Hosting & Reliability", milestone: "M08", icon: Server },
@@ -315,9 +325,20 @@ export function AppShell({ user, activeWorkspace, workspaces, projects, children
           </p>
           {PRIMARY_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = item.matchPrefix
-              ? pathname === item.href || pathname.startsWith(`${item.matchPrefix}/`)
-              : pathname === item.href;
+            const isProjectAudience = /^\/projects\/[^/]+\/audience\/?$/.test(pathname);
+            const isProjectSearch = /^\/projects\/[^/]+\/search\/?$/.test(pathname);
+            const isActive =
+              item.href === "/audience"
+                ? pathname === "/audience" || pathname.startsWith("/audience/") || isProjectAudience
+                : item.href === "/search"
+                  ? pathname === "/search" || pathname.startsWith("/search/") || isProjectSearch
+                  : item.href === "/projects"
+                    ? (pathname === "/projects" || pathname.startsWith("/projects/")) &&
+                      !isProjectAudience &&
+                      !isProjectSearch
+                    : item.matchPrefix
+                      ? pathname === item.href || pathname.startsWith(`${item.matchPrefix}/`)
+                      : pathname === item.href;
             return (
               <Link
                 key={item.href}
