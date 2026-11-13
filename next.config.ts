@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   experimental: {
     cpus: 1,
     workerThreads: false,
+    agentUpgrade: "security",
   },
   serverExternalPackages: ["pg"],
   transpilePackages: [
