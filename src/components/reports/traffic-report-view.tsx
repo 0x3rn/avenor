@@ -31,6 +31,7 @@ import {
   ReportContextToolbar,
   ReportDegradedBanner,
 } from "./report-state-banner";
+import { SourceSyncStatusPanel } from "./source-sync-status-panel";
 import { TrendChartCard, type TrendSeriesPoint } from "./trend-chart-card";
 
 type TrafficBreakdownTab =
@@ -454,6 +455,8 @@ export function TrafficReportView({
             actionLabel={telemetry.actionLabel}
             actionHref={telemetry.actionHref}
           />
+
+          <SourceSyncStatusPanel projectId={telemetry.projectId} providerFilter="ga4" />
 
           {/* Primary KPI Strip */}
           <section

@@ -38,6 +38,7 @@ import {
   ReportContextToolbar,
   ReportDegradedBanner,
 } from "./report-state-banner";
+import { SourceSyncStatusPanel } from "./source-sync-status-panel";
 import { TrendChartCard, type TrendSeriesPoint } from "./trend-chart-card";
 
 type SearchBreakdownTab = "queries" | "pages" | "countries" | "devices" | "appearance";
@@ -557,6 +558,8 @@ export function SearchReportView({
             actionLabel={telemetry.actionLabel}
             actionHref={telemetry.actionHref}
           />
+
+          <SourceSyncStatusPanel projectId={telemetry.projectId} providerFilter="gsc" />
 
           {/* KPI Strip */}
           <section

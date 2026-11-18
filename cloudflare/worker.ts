@@ -41,6 +41,7 @@ import {
   unmapResourceFromProject,
   validateConnectionHealth,
 } from "../src/lib/connections";
+import { getProjectSyncStatusSummary, triggerProjectIngestionAction } from "../src/lib/ingestion";
 import {
   getProviderCatalogEntry,
   PROVIDER_CATALOG,
@@ -344,6 +345,26 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       const parsed = parseSearchConsoleReportParams(url.searchParams);
       const result = await getProjectSearchConsoleTelemetry(session, projectId, parsed);
       return jsonResponse(result.payload, result.statusCode);
+    }
+
+    const projectSyncMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sync$/);
+    if (projectSyncMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectSyncMatch[1]);
+      if (method === "GET") {
+        const summary = await getProjectSyncStatusSummary(session, projectId);
+        return jsonResponse(summary, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json().catch(() => ({}))) as {
+          action?: "sync" | "backfill" | "revision_lookback" | "pause" | "resume";
+          connectedResourceId?: string | null;
+          backfillDays?: number | null;
+          idempotencyToken?: string | null;
+        };
+        const result = await triggerProjectIngestionAction(session, projectId, body);
+        return jsonResponse(result, 200);
+      }
     }
 
     const projectDetailMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);
