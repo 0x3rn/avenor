@@ -22,6 +22,11 @@ import {
 } from "@/lib/reports/date-window";
 import type { ProjectGa4StandardResponseDto } from "@/lib/reports/ga4-service";
 import {
+  MetricDefinitionTrigger,
+  type MetricProvenanceContext,
+  MetricProvenanceDrawer,
+} from "./metric-provenance-drawer";
+import {
   ReportBlockedStateCard,
   ReportContextToolbar,
   ReportDegradedBanner,
@@ -111,6 +116,7 @@ export function TrafficReportView({
   const [fetchError, setFetchError] = React.useState<string | null>(null);
   const [activeTrendMetric, setActiveTrendMetric] = React.useState<string>("sessions");
   const [activeTab, setActiveTab] = React.useState<TrafficBreakdownTab>("channels");
+  const [inspectedMetricKey, setInspectedMetricKey] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setTelemetry(initialTelemetry);
@@ -467,6 +473,12 @@ export function TrafficReportView({
               )}
               sourceLabel="GA4 Property"
               freshnessLabel={`TZ: ${reportingTz}`}
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="ga4.active_users"
+                  onInspect={setInspectedMetricKey}
+                />
+              }
             />
             <MetricCard
               title="Sessions"
@@ -477,6 +489,12 @@ export function TrafficReportView({
               comparisonDeltaText={formatComparisonDelta(totals?.sessions, compareTotals?.sessions)}
               sourceLabel={`Engaged: ${formatIntegerCount(totals?.engagedSessions)}`}
               freshnessLabel={`Avg duration: ${formatDurationSeconds(totals?.averageSessionDuration)}`}
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="ga4.sessions"
+                  onInspect={setInspectedMetricKey}
+                />
+              }
             />
             <MetricCard
               title="Engagement Rate"
@@ -491,6 +509,12 @@ export function TrafficReportView({
               )}
               sourceLabel={`New users: ${formatIntegerCount(totals?.newUsers)}`}
               freshnessLabel={`Total users: ${formatIntegerCount(totals?.totalUsers)}`}
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="ga4.engagement_rate"
+                  onInspect={setInspectedMetricKey}
+                />
+              }
             />
             <MetricCard
               title="Views & Key Events"
@@ -504,6 +528,12 @@ export function TrafficReportView({
               )}
               sourceLabel={`Key Events: ${formatIntegerCount(totals?.keyEvents)}`}
               freshnessLabel={`Events: ${formatIntegerCount(totals?.eventCount)}`}
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="ga4.screen_page_views"
+                  onInspect={setInspectedMetricKey}
+                />
+              }
             />
           </section>
 
@@ -769,6 +799,30 @@ export function TrafficReportView({
               </div>
             ) : null}
           </Card>
+          <MetricProvenanceDrawer
+            context={
+              inspectedMetricKey
+                ? ({
+                    canonicalMetricKey: inspectedMetricKey,
+                    externalResourceId: report.propertyName,
+                    reportingTimezone: reportingTz,
+                    periodStartDate: report.startDate,
+                    periodEndDate: report.endDate,
+                    completenessState: report.dataQuality.isSampled
+                      ? "SAMPLED"
+                      : report.dataQuality.isThresholded
+                        ? "THRESHOLDED"
+                        : report.dataQuality.hasOtherRowTruncation
+                          ? "TRUNCATED"
+                          : "COMPLETE",
+                    lastCollectedAtIso: report.fetchedAtIso,
+                    currency: report.currencyCode ?? null,
+                    limitations: report.dataQuality.notices,
+                  } satisfies MetricProvenanceContext)
+                : null
+            }
+            onClose={() => setInspectedMetricKey(null)}
+          />
         </>
       ) : null}
     </div>

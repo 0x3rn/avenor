@@ -20,6 +20,8 @@
     "test:analytics:realtime": "vitest run --config vitest.config.ts tests/unit/ga4-realtime.test.ts",
     "test:search-console": "vitest run --config vitest.config.ts tests/unit/google-search-console.test.ts && vitest run --config vitest.integration.config.ts tests/integration/google-search-console.test.ts",
     "test:reports": "vitest run --config vitest.config.ts tests/unit/traffic-seo-reports.test.tsx",
+    "test:metrics": "vitest run --config vitest.config.ts tests/unit/canonical-metrics.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/canonical-metrics-storage.test.ts",
+    "test:aggregation": "vitest run --config vitest.config.ts tests/unit/canonical-metrics.test.tsx",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

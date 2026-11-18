@@ -27,6 +27,11 @@ import {
   formatRatioPercent,
 } from "@/lib/reports/date-window";
 import type { ProjectSearchConsoleResponseDto } from "@/lib/reports/search-console-service";
+import {
+  MetricDefinitionTrigger,
+  type MetricProvenanceContext,
+  MetricProvenanceDrawer,
+} from "./metric-provenance-drawer";
 import { Ga4VsGscReconciliationPanel } from "./reconciliation-panel";
 import {
   ReportBlockedStateCard,
@@ -141,6 +146,7 @@ export function SearchReportView({
   const [activeTrendMetric, setActiveTrendMetric] = React.useState<string>("clicks");
   const [activeTab, setActiveTab] = React.useState<SearchBreakdownTab>("queries");
   const [sortBy, setSortBy] = React.useState<SearchSortField>("clicks");
+  const [inspectedMetricKey, setInspectedMetricKey] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setTelemetry(initialTelemetry);
@@ -567,6 +573,12 @@ export function SearchReportView({
               comparisonDeltaText={formatComparisonDelta(totals?.clicks, compareTotals?.clicks)}
               sourceLabel="Search Console"
               freshnessLabel={`TZ: ${GSC_REPORTING_TIMEZONE}`}
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="gsc.clicks"
+                  onInspect={setInspectedMetricKey}
+                />
+              }
             />
             <MetricCard
               title="Search Impressions"
@@ -580,6 +592,12 @@ export function SearchReportView({
               )}
               sourceLabel={`Surface: ${report.searchType}`}
               freshnessLabel={`State: ${report.dataState}`}
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="gsc.impressions"
+                  onInspect={setInspectedMetricKey}
+                />
+              }
             />
             <MetricCard
               title="Weighted CTR"
@@ -592,6 +610,12 @@ export function SearchReportView({
               })}
               sourceLabel="Impression-weighted"
               freshnessLabel="SERP click ratio"
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="gsc.ctr"
+                  onInspect={setInspectedMetricKey}
+                />
+              }
             />
             <MetricCard
               title="Weighted Avg Position"
@@ -611,6 +635,12 @@ export function SearchReportView({
                 privacyGap?.omittedClicksEstimate
                   ? `${formatIntegerCount(privacyGap.omittedClicksEstimate)} long-tail clicks anonymized`
                   : "Privacy filters active"
+              }
+              actionSlot={
+                <MetricDefinitionTrigger
+                  canonicalMetricKey="gsc.average_position"
+                  onInspect={setInspectedMetricKey}
+                />
               }
             />
           </section>
@@ -904,6 +934,29 @@ export function SearchReportView({
           {telemetry.reconciliation ? (
             <Ga4VsGscReconciliationPanel reconciliation={telemetry.reconciliation} />
           ) : null}
+
+          <MetricProvenanceDrawer
+            context={
+              inspectedMetricKey
+                ? ({
+                    canonicalMetricKey: inspectedMetricKey,
+                    externalResourceId: report.siteUrl,
+                    reportingTimezone: GSC_REPORTING_TIMEZONE,
+                    periodStartDate: report.startDate,
+                    periodEndDate: report.endDate,
+                    completenessState: report.coverage.hasPreliminaryDatesInWindow
+                      ? "PROVISIONAL"
+                      : report.coverage.privacyAnonymizedPossible
+                        ? "PARTIAL"
+                        : "COMPLETE",
+                    lastCollectedAtIso: report.fetchedAtIso,
+                    currency: null,
+                    limitations: report.coverage.notices,
+                  } satisfies MetricProvenanceContext)
+                : null
+            }
+            onClose={() => setInspectedMetricKey(null)}
+          />
         </>
       ) : null}
     </div>

@@ -1,0 +1,648 @@
+-- Milestone 04: Canonical Metrics Registry, Provenance-Aware Time-Series Storage, and Idempotent Ingestion Pipeline (THE-128 / THE-129)
+
+CREATE TABLE IF NOT EXISTS metric_definitions (
+  id TEXT PRIMARY KEY,
+  canonical_key TEXT NOT NULL,
+  provider_key TEXT NOT NULL,
+  provider_metric_name TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (
+    category IN (
+      'audience',
+      'acquisition',
+      'engagement',
+      'search',
+      'cost',
+      'backend',
+      'reliability'
+    )
+  ),
+  unit TEXT NOT NULL,
+  value_type TEXT NOT NULL CHECK (
+    value_type IN (
+      'COUNT',
+      'DISTINCT_COUNT',
+      'RATIO',
+      'PERCENTAGE',
+      'AVERAGE',
+      'POSITION',
+      'DURATION',
+      'SIZE',
+      'CURRENCY',
+      'GAUGE'
+    )
+  ),
+  aggregation_rule TEXT NOT NULL CHECK (
+    aggregation_rule IN (
+      'SUM',
+      'WEIGHTED_RATIO',
+      'WEIGHTED_AVERAGE',
+      'NON_ADDITIVE_DISTINCT',
+      'PROVIDER_TOTAL_ONLY',
+      'LATEST_GAUGE'
+    )
+  ),
+  numerator_metric_key TEXT,
+  denominator_metric_key TEXT,
+  weight_metric_key TEXT,
+  is_additive_across_dates BOOLEAN NOT NULL DEFAULT false,
+  is_additive_across_resources BOOLEAN NOT NULL DEFAULT false,
+  supported_dimensions TEXT[] NOT NULL DEFAULT '{}',
+  supported_granularities TEXT[] NOT NULL DEFAULT '{}',
+  timezone_behavior TEXT NOT NULL CHECK (
+    timezone_behavior IN (
+      'PROPERTY_LOCAL',
+      'PACIFIC_TIME_FIXED',
+      'UTC',
+      'BILLING_ACCOUNT_LOCAL'
+    )
+  ),
+  freshness_window_minutes INTEGER NOT NULL DEFAULT 60 CHECK (freshness_window_minutes > 0),
+  capability_key TEXT NOT NULL,
+  schema_version INTEGER NOT NULL DEFAULT 1 CHECK (schema_version >= 1),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_metric_definitions_canonical_key UNIQUE (canonical_key),
+  CONSTRAINT uq_metric_definitions_provider_metric_ver UNIQUE (provider_key, provider_metric_name, schema_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_metric_definitions_provider_key ON metric_definitions(provider_key);
+CREATE INDEX IF NOT EXISTS idx_metric_definitions_category ON metric_definitions(category);
+
+CREATE TABLE IF NOT EXISTS ingestion_runs (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  project_id TEXT REFERENCES logical_projects(id) ON DELETE SET NULL,
+  environment_id TEXT REFERENCES project_environments(id) ON DELETE SET NULL,
+  provider_connection_id TEXT NOT NULL REFERENCES provider_connections(id) ON DELETE CASCADE,
+  connected_resource_id TEXT NOT NULL REFERENCES connected_resources(id) ON DELETE CASCADE,
+  provider_key TEXT NOT NULL,
+  external_resource_id TEXT NOT NULL,
+  run_type TEXT NOT NULL CHECK (
+    run_type IN (
+      'SCHEDULED_SYNC',
+      'INITIAL_BACKFILL',
+      'MANUAL_REFRESH',
+      'REVISION_LOOKBACK',
+      'RECOVERY_SYNC'
+    )
+  ),
+  job_idempotency_key TEXT NOT NULL,
+  query_fingerprint TEXT NOT NULL,
+  period_start_date TEXT NOT NULL,
+  period_end_date TEXT NOT NULL,
+  reporting_timezone TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (
+    status IN (
+      'PENDING',
+      'RUNNING',
+      'COMPLETED',
+      'PARTIALLY_COMPLETED',
+      'RATE_LIMITED',
+      'FAILED',
+      'PAUSED',
+      'CANCELLED',
+      'CONNECTION_REVOKED'
+    )
+  ),
+  attempt_number INTEGER NOT NULL DEFAULT 1 CHECK (attempt_number >= 1),
+  max_attempts INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts >= 1),
+  records_processed INTEGER NOT NULL DEFAULT 0 CHECK (records_processed >= 0),
+  records_inserted INTEGER NOT NULL DEFAULT 0 CHECK (records_inserted >= 0),
+  records_updated INTEGER NOT NULL DEFAULT 0 CHECK (records_updated >= 0),
+  records_unchanged INTEGER NOT NULL DEFAULT 0 CHECK (records_unchanged >= 0),
+  last_successful_interval TEXT,
+  retry_eligible BOOLEAN NOT NULL DEFAULT false,
+  next_retry_at TIMESTAMPTZ,
+  error_code TEXT,
+  error_category TEXT,
+  error_summary TEXT,
+  quota_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_ingestion_runs_idempotency UNIQUE (workspace_id, job_idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingestion_runs_workspace_created ON ingestion_runs(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ingestion_runs_project_status ON ingestion_runs(project_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ingestion_runs_resource_status ON ingestion_runs(connected_resource_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ingestion_watermarks (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  project_id TEXT REFERENCES logical_projects(id) ON DELETE SET NULL,
+  environment_id TEXT REFERENCES project_environments(id) ON DELETE SET NULL,
+  provider_connection_id TEXT NOT NULL REFERENCES provider_connections(id) ON DELETE CASCADE,
+  connected_resource_id TEXT NOT NULL REFERENCES connected_resources(id) ON DELETE CASCADE,
+  provider_key TEXT NOT NULL,
+  external_resource_id TEXT NOT NULL,
+  query_scope_key TEXT NOT NULL,
+  query_version INTEGER NOT NULL DEFAULT 1 CHECK (query_version >= 1),
+  reporting_timezone TEXT NOT NULL,
+  last_attempted_start_date TEXT,
+  last_attempted_end_date TEXT,
+  last_committed_start_date TEXT,
+  last_committed_end_date TEXT,
+  backfill_earliest_date TEXT,
+  backfill_target_date TEXT,
+  backfill_completed BOOLEAN NOT NULL DEFAULT false,
+  source_completeness TEXT NOT NULL DEFAULT 'COMPLETE' CHECK (
+    source_completeness IN (
+      'COMPLETE',
+      'PARTIAL',
+      'PROVISIONAL',
+      'STALE',
+      'UNAVAILABLE'
+    )
+  ),
+  sync_state TEXT NOT NULL DEFAULT 'PENDING' CHECK (
+    sync_state IN (
+      'PENDING',
+      'RUNNING',
+      'COMPLETED',
+      'PARTIALLY_COMPLETED',
+      'RATE_LIMITED',
+      'FAILED',
+      'PAUSED',
+      'CONNECTION_REVOKED'
+    )
+  ),
+  consecutive_failures INTEGER NOT NULL DEFAULT 0 CHECK (consecutive_failures >= 0),
+  failed_intervals JSONB NOT NULL DEFAULT '[]'::jsonb,
+  active_run_id TEXT REFERENCES ingestion_runs(id) ON DELETE SET NULL,
+  lease_expires_at TIMESTAMPTZ,
+  next_scheduled_at TIMESTAMPTZ,
+  rate_limit_reset_at TIMESTAMPTZ,
+  last_attempted_at TIMESTAMPTZ,
+  last_succeeded_at TIMESTAMPTZ,
+  last_error_code TEXT,
+  last_error_summary TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_ingestion_watermarks_scope UNIQUE (workspace_id, connected_resource_id, query_scope_key, query_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingestion_watermarks_workspace_state ON ingestion_watermarks(workspace_id, sync_state);
+CREATE INDEX IF NOT EXISTS idx_ingestion_watermarks_project_id ON ingestion_watermarks(project_id);
+CREATE INDEX IF NOT EXISTS idx_ingestion_watermarks_next_scheduled ON ingestion_watermarks(next_scheduled_at);
+
+CREATE TABLE IF NOT EXISTS metric_observations (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  project_id TEXT REFERENCES logical_projects(id) ON DELETE SET NULL,
+  environment_id TEXT REFERENCES project_environments(id) ON DELETE SET NULL,
+  provider_connection_id TEXT NOT NULL REFERENCES provider_connections(id) ON DELETE CASCADE,
+  connected_resource_id TEXT NOT NULL REFERENCES connected_resources(id) ON DELETE CASCADE,
+  provider_key TEXT NOT NULL,
+  external_resource_id TEXT NOT NULL,
+  canonical_metric_key TEXT NOT NULL REFERENCES metric_definitions(canonical_key) ON DELETE RESTRICT,
+  provider_metric_name TEXT NOT NULL,
+  metric_definition_version INTEGER NOT NULL DEFAULT 1 CHECK (metric_definition_version >= 1),
+  granularity TEXT NOT NULL CHECK (
+    granularity IN (
+      'DAILY',
+      'WEEKLY',
+      'MONTHLY',
+      'WINDOW_TOTAL',
+      'REALTIME_SNAPSHOT'
+    )
+  ),
+  period_start_date TEXT NOT NULL,
+  period_end_date TEXT NOT NULL,
+  period_start_utc TIMESTAMPTZ NOT NULL,
+  period_end_utc TIMESTAMPTZ NOT NULL,
+  reporting_timezone TEXT NOT NULL,
+  dimension_key_hash TEXT NOT NULL,
+  dimension_canonical_key TEXT NOT NULL,
+  dimensions JSONB NOT NULL DEFAULT '{}'::jsonb,
+  query_fingerprint TEXT NOT NULL,
+  unit TEXT NOT NULL,
+  currency TEXT,
+  numeric_value NUMERIC(20, 6),
+  numerator_value NUMERIC(20, 6),
+  denominator_value NUMERIC(20, 6),
+  completeness_state TEXT NOT NULL DEFAULT 'COMPLETE' CHECK (
+    completeness_state IN (
+      'COMPLETE',
+      'PROVISIONAL',
+      'PARTIAL',
+      'SAMPLED',
+      'THRESHOLDED',
+      'TRUNCATED',
+      'STALE',
+      'UNAVAILABLE'
+    )
+  ),
+  data_quality_flags JSONB NOT NULL DEFAULT '{}'::jsonb,
+  source_updated_at TIMESTAMPTZ,
+  collected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ingestion_run_id TEXT REFERENCES ingestion_runs(id) ON DELETE SET NULL,
+  revision_number INTEGER NOT NULL DEFAULT 1 CHECK (revision_number >= 1),
+  previous_numeric_value NUMERIC(20, 6),
+  revision_reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_metric_observations_period_bounds CHECK (period_end_utc > period_start_utc AND period_end_date >= period_start_date),
+  CONSTRAINT uq_metric_observations_identity UNIQUE (
+    workspace_id,
+    connected_resource_id,
+    canonical_metric_key,
+    metric_definition_version,
+    granularity,
+    period_start_date,
+    period_end_date,
+    dimension_key_hash,
+    query_fingerprint
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_metric_observations_workspace_metric_period
+  ON metric_observations(workspace_id, canonical_metric_key, granularity, period_start_date, period_end_date);
+
+CREATE INDEX IF NOT EXISTS idx_metric_observations_project_metric_period
+  ON metric_observations(project_id, canonical_metric_key, granularity, period_start_date, period_end_date);
+
+CREATE INDEX IF NOT EXISTS idx_metric_observations_resource_metric_period
+  ON metric_observations(connected_resource_id, canonical_metric_key, granularity, period_start_date, period_end_date);
+
+CREATE INDEX IF NOT EXISTS idx_metric_observations_org_workspace
+  ON metric_observations(organization_id, workspace_id);
+
+CREATE TABLE IF NOT EXISTS metric_observation_revisions (
+  id TEXT PRIMARY KEY,
+  observation_id TEXT NOT NULL REFERENCES metric_observations(id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  canonical_metric_key TEXT NOT NULL,
+  revision_number INTEGER NOT NULL CHECK (revision_number >= 1),
+  previous_value NUMERIC(20, 6),
+  new_value NUMERIC(20, 6),
+  previous_completeness TEXT NOT NULL,
+  new_completeness TEXT NOT NULL,
+  revision_reason TEXT NOT NULL,
+  ingestion_run_id TEXT REFERENCES ingestion_runs(id) ON DELETE SET NULL,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_metric_observation_revisions_num UNIQUE (observation_id, revision_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_metric_observation_revisions_obs_id
+  ON metric_observation_revisions(observation_id, revision_number DESC);
+
+CREATE INDEX IF NOT EXISTS idx_metric_observation_revisions_workspace_id
+  ON metric_observation_revisions(workspace_id, recorded_at DESC);
+
+-- Seed canonical Milestone 03 / 04 metric definitions idempotently
+INSERT INTO metric_definitions (
+  id, canonical_key, provider_key, provider_metric_name, display_name, description,
+  category, unit, value_type, aggregation_rule, numerator_metric_key, denominator_metric_key,
+  weight_metric_key, is_additive_across_dates, is_additive_across_resources,
+  supported_dimensions, supported_granularities, timezone_behavior,
+  freshness_window_minutes, capability_key, schema_version
+) VALUES
+  (
+    'mdef_ga4_active_users_v1',
+    'ga4.active_users',
+    'ga4',
+    'activeUsers',
+    'Active Users (GA4)',
+    'Distinct users who had an engaged session or when Analytics collected first_visit/engagement_time_msec. Non-additive across dates and properties; requires GA4 RESERVED_TOTAL window aggregation.',
+    'audience',
+    'users',
+    'DISTINCT_COUNT',
+    'NON_ADDITIVE_DISTINCT',
+    NULL,
+    NULL,
+    NULL,
+    false,
+    false,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'pagePath', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL', 'REALTIME_SNAPSHOT'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_total_users_v1',
+    'ga4.total_users',
+    'ga4',
+    'totalUsers',
+    'Total Users (GA4)',
+    'Distinct unique users who logged any event in the reporting window. Non-additive across dates and properties.',
+    'audience',
+    'users',
+    'DISTINCT_COUNT',
+    'NON_ADDITIVE_DISTINCT',
+    NULL,
+    NULL,
+    NULL,
+    false,
+    false,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'pagePath', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_new_users_v1',
+    'ga4.new_users',
+    'ga4',
+    'newUsers',
+    'New Users (GA4)',
+    'Users interacting with the site or app for the first time (first_visit / first_open events).',
+    'acquisition',
+    'users',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    false,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_sessions_v1',
+    'ga4.sessions',
+    'ga4',
+    'sessions',
+    'Sessions (GA4)',
+    'Total GA4 sessions initiated on the property (session_start). Additive across disjoint dates within the same property; distinct from Search Console clicks.',
+    'acquisition',
+    'sessions',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    true,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'pagePath', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_engaged_sessions_v1',
+    'ga4.engaged_sessions',
+    'ga4',
+    'engagedSessions',
+    'Engaged Sessions (GA4)',
+    'Sessions lasting 10 seconds or longer, having 1+ key events, or 2+ page/screen views.',
+    'engagement',
+    'sessions',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    true,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'pagePath', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_engagement_rate_v1',
+    'ga4.engagement_rate',
+    'ga4',
+    'engagementRate',
+    'Engagement Rate (GA4)',
+    'Session-weighted ratio of engagedSessions divided by sessions (0..1). Never compute as an unweighted average of daily ratios.',
+    'engagement',
+    'ratio',
+    'RATIO',
+    'WEIGHTED_RATIO',
+    'ga4.engaged_sessions',
+    'ga4.sessions',
+    'ga4.sessions',
+    false,
+    false,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'pagePath', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_screen_page_views_v1',
+    'ga4.screen_page_views',
+    'ga4',
+    'screenPageViews',
+    'Views (GA4)',
+    'Total app screens or web pages viewed by users, including repeated views of a single page/screen.',
+    'engagement',
+    'views',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    true,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'pagePath', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL', 'REALTIME_SNAPSHOT'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_event_count_v1',
+    'ga4.event_count',
+    'ga4',
+    'eventCount',
+    'Event Count (GA4)',
+    'Total count of GA4 events triggered across the property.',
+    'engagement',
+    'events',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    true,
+    ARRAY['date', 'eventName', 'sessionDefaultChannelGroup', 'pagePath', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL', 'REALTIME_SNAPSHOT'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_average_session_duration_v1',
+    'ga4.average_session_duration',
+    'ga4',
+    'averageSessionDuration',
+    'Average Session Duration (GA4)',
+    'Session-weighted average duration in seconds across sessions. Must be weighted by sessions rather than averaging daily averages.',
+    'engagement',
+    'seconds',
+    'DURATION',
+    'WEIGHTED_AVERAGE',
+    NULL,
+    'ga4.sessions',
+    'ga4.sessions',
+    false,
+    false,
+    ARRAY['date', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_ga4_key_events_v1',
+    'ga4.key_events',
+    'ga4',
+    'keyEvents',
+    'Key Events (GA4)',
+    'Count of events marked as Key Events (conversions) in the GA4 property configuration.',
+    'engagement',
+    'events',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    true,
+    ARRAY['date', 'eventName', 'sessionDefaultChannelGroup', 'landingPagePlusQueryString', 'deviceCategory', 'country'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PROPERTY_LOCAL',
+    240,
+    'analytics_sessions',
+    1
+  ),
+  (
+    'mdef_gsc_clicks_v1',
+    'gsc.clicks',
+    'gsc',
+    'clicks',
+    'Search Clicks (GSC)',
+    'Pre-click Google Search result taps that sent a user outside Google Search. Additive across disjoint dates within the same unsegmented property scope; never equate with GA4 sessions.',
+    'search',
+    'clicks',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    false,
+    ARRAY['date', 'query', 'page', 'country', 'device', 'searchAppearance', 'searchType'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PACIFIC_TIME_FIXED',
+    1440,
+    'search_queries',
+    1
+  ),
+  (
+    'mdef_gsc_impressions_v1',
+    'gsc.impressions',
+    'gsc',
+    'impressions',
+    'Search Impressions (GSC)',
+    'Count of times a link to the site appeared in Google Search results seen by a user. Additive across disjoint dates when unsegmented scope aligns.',
+    'search',
+    'impressions',
+    'COUNT',
+    'SUM',
+    NULL,
+    NULL,
+    NULL,
+    true,
+    false,
+    ARRAY['date', 'query', 'page', 'country', 'device', 'searchAppearance', 'searchType'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PACIFIC_TIME_FIXED',
+    1440,
+    'search_queries',
+    1
+  ),
+  (
+    'mdef_gsc_ctr_v1',
+    'gsc.ctr',
+    'gsc',
+    'ctr',
+    'Click-Through Rate (GSC)',
+    'Impression-weighted click-through ratio (clicks / impressions, 0..1). Must always be derived from total clicks divided by total impressions.',
+    'search',
+    'ratio',
+    'RATIO',
+    'WEIGHTED_RATIO',
+    'gsc.clicks',
+    'gsc.impressions',
+    'gsc.impressions',
+    false,
+    false,
+    ARRAY['date', 'query', 'page', 'country', 'device', 'searchAppearance', 'searchType'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PACIFIC_TIME_FIXED',
+    1440,
+    'search_queries',
+    1
+  ),
+  (
+    'mdef_gsc_average_position_v1',
+    'gsc.average_position',
+    'gsc',
+    'position',
+    'Average Position (GSC)',
+    'Impression-weighted average topmost ranking position in Google Search results (1.0 is top rank). Weighted by impressions across periods.',
+    'search',
+    'rank',
+    'POSITION',
+    'WEIGHTED_AVERAGE',
+    NULL,
+    'gsc.impressions',
+    'gsc.impressions',
+    false,
+    false,
+    ARRAY['date', 'query', 'page', 'country', 'device', 'searchAppearance', 'searchType'],
+    ARRAY['DAILY', 'WINDOW_TOTAL'],
+    'PACIFIC_TIME_FIXED',
+    1440,
+    'search_queries',
+    1
+  )
+ON CONFLICT (canonical_key) DO UPDATE SET
+  display_name = EXCLUDED.display_name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  unit = EXCLUDED.unit,
+  value_type = EXCLUDED.value_type,
+  aggregation_rule = EXCLUDED.aggregation_rule,
+  numerator_metric_key = EXCLUDED.numerator_metric_key,
+  denominator_metric_key = EXCLUDED.denominator_metric_key,
+  weight_metric_key = EXCLUDED.weight_metric_key,
+  is_additive_across_dates = EXCLUDED.is_additive_across_dates,
+  is_additive_across_resources = EXCLUDED.is_additive_across_resources,
+  supported_dimensions = EXCLUDED.supported_dimensions,
+  supported_granularities = EXCLUDED.supported_granularities,
+  timezone_behavior = EXCLUDED.timezone_behavior,
+  freshness_window_minutes = EXCLUDED.freshness_window_minutes,
+  capability_key = EXCLUDED.capability_key,
+  updated_at = now();
