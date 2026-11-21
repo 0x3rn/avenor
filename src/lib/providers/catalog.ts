@@ -380,12 +380,12 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     shortName: "Neon",
     category: "database_backend",
     authMode: "api_token",
-    availabilityStatus: "planned_milestone",
-    targetMilestone: "M07",
+    availabilityStatus: "oauth_framework_ready",
+    targetMilestone: "M06",
     summary:
-      "Read-only project, branch, compute CU-hour, and storage footprint telemetry via scoped Neon API keys. Never connects to user databases or executes SQL. Scheduled for Milestone 07.",
+      "Read-only project, branch, compute CU-seconds, active time, and storage footprint telemetry via Neon Control Plane API v2 (`console.neon.tech/api/v2`) with GET-only endpoint lock. Never connects to user databases or executes SQL.",
     readOnlyGuaranteeText:
-      "Inspects Neon Control Plane consumption and branch metadata only. Never connects to your Postgres database or reads application tables.",
+      "Inspects Neon Control Plane consumption and branch metadata only under a strict GET-only HTTP allowlist. Never connects to your Postgres database, never retrieves connection URIs or passwords, and never reads application tables.",
     prohibitedOperationsSummary: [
       "Never opens a Postgres connection to customer databases or executes SQL",
       "Cannot create, reset, or delete Neon branches or compute endpoints",
@@ -396,21 +396,60 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     defaultScopes: ["neon.projects.readonly", "neon.consumption.readonly"],
     capabilities: [
       {
-        capabilityKey: "postgres_metadata",
-        label: "Compute CU-Hours, Storage & Branch Posture",
+        capabilityKey: "resource_discovery",
+        label: "Project, Branch, Database & Compute Endpoint Discovery",
         description:
-          "Reads active compute seconds, synthetic storage size, and branch count from the Neon Consumption API.",
-        requiredScopes: ["neon.projects.readonly", "neon.consumption.readonly"],
-        requiredPermissions: ["Organization Member (Read-Only API Key)"],
-        supportedGranularities: ["hourly", "daily", "monthly"],
-        supportedDimensions: ["projectId", "branchId", "region"],
-        expectedLatencyMinutes: 15,
-        freshnessWindowMinutes: 60,
-        defaultStatus: "PREVIEW_ONLY",
+          "Discovers Neon projects, branches (PRODUCTION/STAGING/DEVELOPMENT), metadata-only database listings, and compute autoscaling bounds without retrieving connection URIs.",
+        requiredScopes: ["neon.projects.readonly"],
+        requiredPermissions: [
+          "Organization or Project Control Plane Key (Adapter GET-Only Locked)",
+        ],
+        supportedGranularities: ["daily"],
+        supportedDimensions: ["projectId", "branchId", "region", "environmentHint"],
+        expectedLatencyMinutes: 5,
+        freshnessWindowMinutes: 30,
         rateLimitPolicy: {
           requestsPerMinute: 40,
           burstLimit: 10,
           retryStrategy: "retry_after_header",
+        },
+      },
+      {
+        capabilityKey: "postgres_metadata",
+        label: "Compute CU-Seconds, Active Time & Storage Footprint",
+        description:
+          "Reads compute-unit seconds (CU-seconds), active compute seconds, billing-horizon storage consumption (bytes-month), instantaneous branch logical size (bytes), and network transfer from the Neon Consumption API v2.",
+        requiredScopes: ["neon.projects.readonly", "neon.consumption.readonly"],
+        requiredPermissions: [
+          "Organization or Project Control Plane Key (Launch/Scale/Business for consumption_history)",
+        ],
+        supportedGranularities: ["hourly", "daily", "monthly"],
+        supportedDimensions: ["projectId", "branchId", "region"],
+        expectedLatencyMinutes: 15,
+        freshnessWindowMinutes: 60,
+        requiresPaidProviderPlan: true,
+        rateLimitPolicy: {
+          requestsPerMinute: 40,
+          burstLimit: 10,
+          retryStrategy: "retry_after_header",
+        },
+      },
+      {
+        capabilityKey: "user_count_posture",
+        label: "Application Registered User Directory Count",
+        description:
+          "Neon is a serverless PostgreSQL engine without a control-plane application user directory; querying customer SQL tables for user counts is prohibited.",
+        requiredScopes: ["neon.projects.readonly"],
+        requiredPermissions: ["Not Applicable (Zero-SQL Boundary)"],
+        supportedGranularities: ["daily"],
+        supportedDimensions: [],
+        expectedLatencyMinutes: 0,
+        freshnessWindowMinutes: 0,
+        defaultStatus: "UNSUPPORTED_BY_PROVIDER",
+        rateLimitPolicy: {
+          requestsPerMinute: 0,
+          burstLimit: 0,
+          retryStrategy: "exponential_backoff",
         },
       },
     ],

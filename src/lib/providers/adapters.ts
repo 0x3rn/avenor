@@ -17,6 +17,7 @@ import { getProviderCatalogEntry, PROVIDER_CATALOG } from "./catalog";
 import { createGa4ReadOnlyAdapter } from "./google-analytics";
 import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
 import { createGscReadOnlyAdapter } from "./google-search-console";
+import { createNeonReadOnlyAdapter } from "./neon";
 
 const SAMPLE_RESOURCES_BY_PROVIDER: Record<string, readonly DiscoveredExternalResource[]> = {
   "avenor-sandbox": [
@@ -462,6 +463,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "gcp-billing") {
     return createGcpBillingReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "neon") {
+    return createNeonReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }
