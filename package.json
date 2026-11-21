@@ -25,6 +25,7 @@
     "test:ingestion": "vitest run --config vitest.config.ts tests/unit/ingestion-policies.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/ingestion-pipeline.test.ts",
     "test:dashboard": "vitest run --config vitest.config.ts tests/unit/project-detail-view.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/portfolio-control-center.test.ts",
     "test:reconciliation": "vitest run --config vitest.config.ts tests/unit/reconciliation.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/source-reconciliation.test.ts",
+    "test:cache": "vitest run --config vitest.config.ts tests/unit/report-cache.test.ts && vitest run --config vitest.integration.config.ts tests/integration/report-cache-security.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

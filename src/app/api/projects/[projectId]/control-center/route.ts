@@ -1,6 +1,7 @@
 import { type EnvironmentType, toAppError } from "@avenor/types";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth-server";
+import { buildAuthenticatedReportResponseHeaders } from "@/lib/reports/cache";
 import { getProjectControlCenterOverview } from "@/lib/reports/portfolio-service";
 
 export async function GET(
@@ -27,7 +28,10 @@ export async function GET(
       endDate,
       compare,
     });
-    return NextResponse.json(overview, { status: 200 });
+    return NextResponse.json(overview, {
+      status: 200,
+      headers: buildAuthenticatedReportResponseHeaders(overview.cacheMetadata),
+    });
   } catch (error) {
     const appErr = toAppError(error);
     return NextResponse.json(appErr.toPublicJson(), { status: appErr.statusCode });

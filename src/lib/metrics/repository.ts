@@ -6,6 +6,7 @@ import {
   withTransaction,
 } from "@avenor/database";
 import { AppError, ERROR_CODES } from "@avenor/types";
+import { sharedReportCache } from "@/lib/reports/cache";
 import { computeDimensionIdentity } from "./dimensions";
 import { getCanonicalMetricDefinition, validateMetricDefinitionInput } from "./registry";
 import { computeSourcePeriodUtcBounds } from "./time";
@@ -580,12 +581,21 @@ export async function upsertMetricObservation(
   input: CanonicalMetricObservationInput,
   options?: { connectionString?: string; client?: Queryable },
 ): Promise<MetricUpsertOutcome> {
-  if (options?.client) {
-    return upsertSingleObservationInTx(input, options.client);
+  const outcome = options?.client
+    ? await upsertSingleObservationInTx(input, options.client)
+    : await withTransaction(async (tx) => upsertSingleObservationInTx(input, tx), {
+        connectionString: options?.connectionString,
+      });
+
+  if (outcome.action !== "unchanged") {
+    if (input.projectId) {
+      sharedReportCache.invalidateProject(input.organizationId, input.workspaceId, input.projectId);
+    } else {
+      sharedReportCache.invalidateWorkspace(input.organizationId, input.workspaceId);
+    }
   }
-  return withTransaction(async (tx) => upsertSingleObservationInTx(input, tx), {
-    connectionString: options?.connectionString,
-  });
+
+  return outcome;
 }
 
 /**
@@ -618,10 +628,24 @@ export async function upsertMetricObservationBatch(
     };
   };
 
-  if (options?.client) {
-    return runBatch(options.client);
+  const batchResult = options?.client
+    ? await runBatch(options.client)
+    : await withTransaction(runBatch, { connectionString: options?.connectionString });
+
+  if (batchResult.insertedCount > 0 || batchResult.updatedCount > 0) {
+    const affectedWorkspaces = new Set<string>();
+    for (const item of inputs) {
+      affectedWorkspaces.add(`${item.organizationId}::${item.workspaceId}`);
+    }
+    for (const pair of affectedWorkspaces) {
+      const [orgId, wksId] = pair.split("::");
+      if (orgId && wksId) {
+        sharedReportCache.invalidateWorkspace(orgId, wksId);
+      }
+    }
   }
-  return withTransaction(runBatch, { connectionString: options?.connectionString });
+
+  return batchResult;
 }
 
 /**

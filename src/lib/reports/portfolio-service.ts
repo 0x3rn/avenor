@@ -23,6 +23,12 @@ import {
   queryMetricObservations,
   type StoredMetricObservation,
 } from "@/lib/metrics";
+import {
+  classifyReportDataFreshness,
+  type ReportCacheEnvelopeMetadata,
+  type ReportFreshnessClassification,
+  sharedReportCache,
+} from "./cache";
 import { addCalendarDays, countInclusiveDays, formatDateInTimeZone } from "./date-window";
 
 export type PortfolioDatePreset = "7d" | "28d" | "90d" | "mtd" | "custom";
@@ -297,6 +303,8 @@ export interface WorkspacePortfolioOverviewDto {
       resourceDisplayName: string;
     }
   >;
+  cacheMetadata?: ReportCacheEnvelopeMetadata;
+  freshnessClassification?: ReportFreshnessClassification;
 }
 
 export interface ProjectDimensionBreakdownItem {
@@ -354,6 +362,8 @@ export interface ProjectControlCenterOverviewDto {
     topSearchPages: ProjectDimensionBreakdownItem[];
   };
   syncStatus: ProjectSyncStatusSummaryDto;
+  cacheMetadata?: ReportCacheEnvelopeMetadata;
+  freshnessClassification?: ReportFreshnessClassification;
 }
 
 interface DbWorkspaceMappedResourceRow {
@@ -512,6 +522,7 @@ export async function getWorkspacePortfolioOverview(
     endDate?: string | null;
     compare?: boolean;
     autoHydrateIfEmpty?: boolean;
+    bypassCache?: boolean;
     now?: Date;
   },
   options?: { connectionString?: string },
@@ -551,6 +562,53 @@ export async function getWorkspacePortfolioOverview(
     timeZone: ws.default_timezone,
     now: query?.now,
   });
+
+  const cached = await sharedReportCache.getOrLoad(
+    {
+      organizationId: access.organizationId,
+      workspaceId: access.workspaceId,
+      projectId: null,
+      environmentId: null,
+      role: access.role,
+      surface: "portfolio_overview",
+      startDate: dateWindow.startDate,
+      endDate: dateWindow.endDate,
+      compareEnabled: dateWindow.compareEnabled,
+      filters: { preset: dateWindow.preset },
+    },
+    async () => {
+      return computeWorkspacePortfolioOverviewUncached({
+        session,
+        access,
+        ws,
+        dateWindow,
+        query,
+        options,
+      });
+    },
+    {
+      bypassCache: query?.bypassCache,
+    },
+  );
+
+  return {
+    ...cached.value,
+    cacheMetadata: cached.metadata,
+  };
+}
+
+async function computeWorkspacePortfolioOverviewUncached(input: {
+  session: AuthenticatedSessionContext | null;
+  access: { organizationId: string; workspaceId: string; role: string };
+  ws: { name: string; default_timezone: string; default_currency: string };
+  dateWindow: ResolvedPortfolioDateWindow;
+  query?: {
+    autoHydrateIfEmpty?: boolean;
+  };
+  options?: { connectionString?: string };
+}): Promise<WorkspacePortfolioOverviewDto> {
+  const { session, access, ws, dateWindow, query, options } = input;
+  const pool = getDatabasePool(options?.connectionString);
 
   const allProjects = await listWorkspaceProjects(session, access.workspaceId, {
     includeArchived: true,
@@ -1237,6 +1295,7 @@ export async function getProjectControlCenterOverview(
     endDate?: string | null;
     compare?: boolean;
     autoHydrateIfEmpty?: boolean;
+    bypassCache?: boolean;
     now?: Date;
   },
   options?: { connectionString?: string },
@@ -1288,6 +1347,77 @@ export async function getProjectControlCenterOverview(
     timeZone: defaultTimezone,
     now: query?.now,
   });
+
+  const cached = await sharedReportCache.getOrLoad(
+    {
+      organizationId: access.organizationId,
+      workspaceId: access.workspaceId,
+      projectId: access.projectId,
+      environmentId: selectedEnvironmentId,
+      role: access.role,
+      surface: "project_control_center",
+      startDate: dateWindow.startDate,
+      endDate: dateWindow.endDate,
+      compareEnabled: dateWindow.compareEnabled,
+      filters: {
+        preset: dateWindow.preset,
+        environmentType: selectedEnvironmentType,
+      },
+    },
+    async () => {
+      return computeProjectControlCenterUncached({
+        session,
+        access,
+        project,
+        selectedEnvironmentId,
+        selectedEnvironmentType,
+        dateWindow,
+        query,
+        options,
+      });
+    },
+    {
+      bypassCache: query?.bypassCache,
+    },
+  );
+
+  const freshnessClassification = classifyReportDataFreshness({
+    lastSuccessfulSyncIso: cached.value.syncStatus.lastSyncedAtIso,
+    completenessState: cached.value.metrics.sessions.completenessState,
+    syncState: cached.value.syncStatus.overallState,
+    isStaleFallback: cached.metadata.cacheStatus === "STALE_FALLBACK",
+  });
+
+  return {
+    ...cached.value,
+    cacheMetadata: cached.metadata,
+    freshnessClassification,
+  };
+}
+
+async function computeProjectControlCenterUncached(input: {
+  session: AuthenticatedSessionContext | null;
+  access: { organizationId: string; workspaceId: string; projectId: string };
+  project: LogicalProjectSummary;
+  selectedEnvironmentId: string | null;
+  selectedEnvironmentType: EnvironmentType;
+  dateWindow: ResolvedPortfolioDateWindow;
+  query?: {
+    autoHydrateIfEmpty?: boolean;
+  };
+  options?: { connectionString?: string };
+}): Promise<ProjectControlCenterOverviewDto> {
+  const {
+    session,
+    access,
+    project,
+    selectedEnvironmentId,
+    selectedEnvironmentType,
+    dateWindow,
+    query,
+    options,
+  } = input;
+  const pool = getDatabasePool(options?.connectionString);
 
   const mappingsRes = await dbQuery<DbWorkspaceMappedResourceRow>(
     `SELECT
@@ -1531,7 +1661,7 @@ export async function getProjectControlCenterOverview(
       ? "America/Los_Angeles"
       : typeof m.metadata?.timeZone === "string"
         ? m.metadata.timeZone
-        : defaultTimezone,
+        : dateWindow.timeZone,
     lastSyncedAtIso: m.last_succeeded_at ? new Date(m.last_succeeded_at).toISOString() : null,
     sourceLagNotice: isGscProviderKey(m.provider_key)
       ? "GSC finalizes data ~48h after Pacific day end"

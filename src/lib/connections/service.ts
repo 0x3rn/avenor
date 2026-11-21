@@ -22,6 +22,7 @@ import {
   roleHasPermission,
 } from "@avenor/types";
 import { z } from "zod";
+import { sharedReportCache } from "../reports/cache";
 import {
   getProviderAdapter,
   getProviderCatalogEntry,
@@ -849,6 +850,7 @@ export async function mapResourceToProjectEnvironment(
     workspaceId,
     mapping.providerConnectionId,
   );
+  sharedReportCache.invalidateProject(access.organizationId, workspaceId, mapping.projectId);
   return mapping;
 }
 
@@ -942,6 +944,7 @@ export async function unmapResourceFromProject(
     workspaceId,
     unmapped.providerConnectionId,
   );
+  sharedReportCache.invalidateWorkspace(access.organizationId, workspaceId);
   return unmapped;
 }
 
