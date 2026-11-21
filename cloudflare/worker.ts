@@ -59,6 +59,7 @@ import {
   listWorkspaceSubscriptionInvoices,
   processLemonSqueezyWebhookEvent,
 } from "../src/lib/billing/lemon-squeezy";
+import { getWorkspaceUsageAndQuotaReport } from "../src/lib/billing/quotas";
 import { AVENOR_PLAN_CATALOG, type AvenorBillingInterval } from "../src/lib/billing/plan-catalog";
 import {
   type CreateCostSpendingThresholdInput,
@@ -377,6 +378,15 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         webhookSecret,
       });
       return jsonResponse(result, 200);
+    }
+
+    if (pathname === "/api/usage" && method === "GET") {
+      const session = await getWorkerSession(request);
+      const report = await getWorkspaceUsageAndQuotaReport(
+        session,
+        url.searchParams.get("workspaceId") ?? undefined,
+      );
+      return jsonResponse(report, 200);
     }
 
     if (pathname === "/api/billing/subscription") {
