@@ -897,3 +897,144 @@ model GitHubWebhookDelivery {
 
   @@map("github_webhook_deliveries")
 }
+
+model SavedReport {
+  id                String   @id
+  organizationId    String   @map("organization_id")
+  workspaceId       String   @map("workspace_id")
+  createdByUserId   String?  @map("created_by_user_id")
+  name              String
+  description       String?
+  projectIds        String[] @map("project_ids")
+  environmentFilter String   @default("PRODUCTION") @map("environment_filter")
+  metricKeys        String[] @map("metric_keys")
+  datePreset        String   @default("28d") @map("date_preset")
+  visualizationType String   @default("COMPARISON_TABLE") @map("visualization_type")
+  comparisonEnabled Boolean  @default(true) @map("comparison_enabled")
+  definitionVersion Int      @default(1) @map("definition_version")
+  configJson        Json     @default("{}") @map("config_json")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, updatedAt(sort: Desc)], map: "idx_saved_reports_workspace")
+  @@map("saved_reports")
+}
+
+model AnomalyDetection {
+  id             String    @id
+  organizationId String    @map("organization_id")
+  workspaceId    String    @map("workspace_id")
+  projectId      String    @map("project_id")
+  metricKey      String    @map("metric_key")
+  providerKey    String    @map("provider_key")
+  method         String    @default("ROBUST_MAD_ZSCORE")
+  status         String    @default("OPEN")
+  severity       String    @default("WARNING")
+  observedValue  Decimal   @map("observed_value") @db.Decimal(20, 6)
+  baselineMedian Decimal   @map("baseline_median") @db.Decimal(20, 6)
+  baselineMad    Decimal   @map("baseline_mad") @db.Decimal(20, 6)
+  zScore         Decimal   @map("z_score") @db.Decimal(12, 4)
+  sampleCount    Int       @map("sample_count")
+  windowStart    DateTime  @map("window_start") @db.Timestamptz(6)
+  windowEnd      DateTime  @map("window_end") @db.Timestamptz(6)
+  explanation    String
+  evidenceJson   Json      @default("{}") @map("evidence_json")
+  detectedAt     DateTime  @default(now()) @map("detected_at") @db.Timestamptz(6)
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, projectId, status, detectedAt(sort: Desc)], map: "idx_anomaly_detections_workspace_status")
+  @@map("anomaly_detections")
+}
+
+model DigestSchedule {
+  id               String    @id
+  organizationId   String    @map("organization_id")
+  workspaceId      String    @map("workspace_id")
+  createdByUserId  String?   @map("created_by_user_id")
+  name             String
+  cadence          String
+  timezone         String    @default("UTC")
+  projectIds       String[]  @map("project_ids")
+  channels         String[]
+  recipientUserIds String[]  @map("recipient_user_ids")
+  isEnabled        Boolean   @default(true) @map("is_enabled")
+  lastRunWindowKey String?   @map("last_run_window_key")
+  lastGeneratedAt  DateTime? @map("last_generated_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, isEnabled, cadence], map: "idx_digest_schedules_workspace")
+  @@map("digest_schedules")
+}
+
+model OutboundWebhookChannel {
+  id                     String   @id
+  organizationId         String   @map("organization_id")
+  workspaceId            String   @map("workspace_id")
+  channelType            String   @map("channel_type")
+  name                   String
+  targetUrlEncrypted     String   @map("target_url_encrypted")
+  signingSecretEncrypted String?  @map("signing_secret_encrypted")
+  isEnabled              Boolean  @default(true) @map("is_enabled")
+  createdByUserId        String?  @map("created_by_user_id")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, channelType, isEnabled], map: "idx_outbound_webhook_channels_workspace")
+  @@map("outbound_webhook_channels")
+}
+
+model InsightSummary {
+  id                    String   @id
+  organizationId        String   @map("organization_id")
+  workspaceId           String   @map("workspace_id")
+  projectId             String?  @map("project_id")
+  mode                  String
+  headline              String
+  summary               String
+  evidenceIds           String[] @map("evidence_ids")
+  caveats               String[]
+  suggestedChecks       String[] @map("suggested_checks")
+  verifiedNumericClaims Boolean  @default(true) @map("verified_numeric_claims")
+  providerModel         String?  @map("provider_model")
+  createdByUserId       String?  @map("created_by_user_id")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, projectId, createdAt(sort: Desc)], map: "idx_insight_summaries_workspace")
+  @@map("insight_summaries")
+}
+
+model DataExportJob {
+  id                String   @id
+  organizationId    String   @map("organization_id")
+  workspaceId       String   @map("workspace_id")
+  requestedByUserId String?  @map("requested_by_user_id")
+  exportType        String   @map("export_type")
+  status            String   @default("READY")
+  projectIds        String[] @map("project_ids")
+  dateStart         String?  @map("date_start")
+  dateEnd           String?  @map("date_end")
+  rowCount          Int      @default(0) @map("row_count")
+  checksumSha256    String   @map("checksum_sha256")
+  contentPayload    String   @map("content_payload")
+  provenanceHeader  String   @map("provenance_header")
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, status, createdAt(sort: Desc)], map: "idx_data_export_jobs_workspace")
+  @@map("data_export_jobs")
+}
+
+model WorkspaceRetentionPolicy {
+  workspaceId         String   @id @map("workspace_id")
+  organizationId      String   @map("organization_id")
+  metricRetentionDays Int      @default(365) @map("metric_retention_days")
+  eventRetentionDays  Int      @default(180) @map("event_retention_days")
+  exportExpiryHours   Int      @default(24) @map("export_expiry_hours")
+  updatedByUserId     String?  @map("updated_by_user_id")
+  updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("workspace_retention_policies")
+}

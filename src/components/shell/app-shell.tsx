@@ -100,6 +100,12 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
     matchPrefix: "/reliability",
   },
   {
+    label: "Reports",
+    href: "/reports",
+    icon: FileSpreadsheet,
+    matchPrefix: "/reports",
+  },
+  {
     label: "Alerts & Inbox",
     href: "/alerts",
     icon: Bell,

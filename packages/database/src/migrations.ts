@@ -43,6 +43,13 @@ export const CORE_SCHEMA_TABLES = [
   "uptime_incidents",
   "operational_events",
   "github_webhook_deliveries",
+  "saved_reports",
+  "anomaly_detections",
+  "digest_schedules",
+  "outbound_webhook_channels",
+  "insight_summaries",
+  "data_export_jobs",
+  "workspace_retention_policies",
 ] as const;
 
 export type CoreSchemaTable = (typeof CORE_SCHEMA_TABLES)[number];
@@ -313,6 +320,13 @@ export async function resetTestDatabaseRecords(options?: {
   const pool = getDatabasePool(options?.connectionString);
   await pool.query(`
     TRUNCATE TABLE
+      workspace_retention_policies,
+      data_export_jobs,
+      insight_summaries,
+      outbound_webhook_channels,
+      digest_schedules,
+      anomaly_detections,
+      saved_reports,
       github_webhook_deliveries,
       operational_events,
       uptime_incidents,

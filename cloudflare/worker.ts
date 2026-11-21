@@ -94,6 +94,14 @@ import {
 } from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
+  createSavedReport,
+  deleteSavedReport,
+  executeSavedReportBenchmark,
+  listSavedReports,
+  renderReportToPrintableHtml,
+  serializeReportToSafeCsv,
+} from "../src/lib/reports/custom-reports";
+import {
   getProjectCostIntelligenceReport,
   getWorkspaceCostIntelligenceReport,
 } from "../src/lib/reports/cost-service";
@@ -310,6 +318,51 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/reports") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const executeId = url.searchParams.get("executeId");
+        if (executeId) {
+          const executed = await executeSavedReportBenchmark(session, executeId);
+          const format = url.searchParams.get("format");
+          if (format === "csv") {
+            return new Response(serializeReportToSafeCsv(executed), {
+              status: 200,
+              headers: {
+                "content-type": "text/csv; charset=utf-8",
+                "cache-control": "private, no-store",
+              },
+            });
+          }
+          if (format === "html") {
+            return new Response(renderReportToPrintableHtml(executed), {
+              status: 200,
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+                "cache-control": "private, no-store",
+              },
+            });
+          }
+          return jsonResponse(executed, 200);
+        }
+        const reports = await listSavedReports(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ reports }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Parameters<typeof createSavedReport>[1];
+        const report = await createSavedReport(session, body);
+        return jsonResponse({ report }, 201);
+      }
+      if (method === "DELETE") {
+        const reportId = url.searchParams.get("reportId") ?? "";
+        const result = await deleteSavedReport(session, reportId);
+        return jsonResponse(result, 200);
+      }
     }
 
     if (pathname === "/api/reliability") {
