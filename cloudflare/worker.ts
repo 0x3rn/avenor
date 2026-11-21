@@ -82,6 +82,10 @@ import {
   type SourceConsoleBenchmarkEntry,
 } from "../src/lib/reports/mvp-reconciliation";
 import {
+  getProjectOperationalTimeline,
+  recordOperationalEvent,
+} from "../src/lib/reliability/correlation";
+import {
   createUptimeMonitor,
   deleteUptimeMonitor,
   executeUptimeProbeAndRecord,
@@ -342,6 +346,29 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         const monitorId = url.searchParams.get("monitorId") ?? "";
         const result = await deleteUptimeMonitor(session, monitorId);
         return jsonResponse(result, 200);
+      }
+    }
+
+    const projectTimelineMatch = pathname.match(
+      /^\/api\/projects\/([^/]+)\/reliability\/timeline$/,
+    );
+    if (projectTimelineMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectTimelineMatch[1]);
+      if (method === "GET") {
+        const timeline = await getProjectOperationalTimeline(session, projectId, {
+          environmentName: url.searchParams.get("environment") ?? undefined,
+          bypassCache: url.searchParams.get("refresh") === "1",
+        });
+        return jsonResponse(timeline, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Record<string, unknown>;
+        const event = await recordOperationalEvent(session, {
+          ...(body as Parameters<typeof recordOperationalEvent>[1]),
+          projectId,
+        });
+        return jsonResponse({ event }, 201);
       }
     }
 

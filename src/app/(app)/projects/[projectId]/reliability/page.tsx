@@ -2,7 +2,9 @@ import { getLogicalProjectById } from "@avenor/auth";
 import { Badge, PageHeader } from "@avenor/ui";
 import { notFound } from "next/navigation";
 import * as React from "react";
+import { CorrelationTimelinePanel } from "@/components/reliability/correlation-timeline-panel";
 import { ReliabilityDashboardView } from "@/components/reliability/reliability-dashboard-view";
+import { getProjectOperationalTimeline } from "@/lib/reliability/correlation";
 import { listWorkspaceReliabilitySnapshot } from "@/lib/reliability/uptime";
 import { requireAuthenticatedAppContext } from "@/lib/workspace-context";
 
@@ -12,7 +14,10 @@ async function ProjectReliabilityPageContent({ projectId }: { projectId: string 
   if (!project) {
     notFound();
   }
-  const snapshot = await listWorkspaceReliabilitySnapshot(session, { projectId });
+  const [snapshot, timeline] = await Promise.all([
+    listWorkspaceReliabilitySnapshot(session, { projectId }),
+    getProjectOperationalTimeline(session, projectId),
+  ]);
 
   return (
     <div className="space-y-6" data-testid="project-reliability-page">
@@ -34,6 +39,12 @@ async function ProjectReliabilityPageContent({ projectId }: { projectId: string 
         initialIncidents={snapshot.incidents}
         singleRegionCaveat={snapshot.singleRegionCaveat}
         fixedProjectId={project.id}
+      />
+
+      <CorrelationTimelinePanel
+        events={timeline.events}
+        correlations={timeline.correlations}
+        causationDisclaimer={timeline.causationDisclaimer}
       />
     </div>
   );
