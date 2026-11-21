@@ -21,6 +21,7 @@ import { createGa4ReadOnlyAdapter } from "./google-analytics";
 import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
 import { createGscReadOnlyAdapter } from "./google-search-console";
 import { createNeonReadOnlyAdapter } from "./neon";
+import { createSentryReadOnlyAdapter } from "./sentry";
 import { createSupabaseReadOnlyAdapter } from "./supabase";
 import { createVercelReadOnlyAdapter } from "./vercel";
 
@@ -486,6 +487,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "github") {
     return createGitHubReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "sentry") {
+    return createSentryReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

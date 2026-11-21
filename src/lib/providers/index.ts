@@ -10,5 +10,6 @@ export * from "./google-search-console";
 export * from "./google-shared/cache";
 export * from "./google-shared/http";
 export * from "./neon";
+export * from "./sentry";
 export * from "./supabase";
 export * from "./vercel";

@@ -726,33 +726,49 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     shortName: "Sentry",
     category: "delivery_reliability",
     authMode: "api_token",
-    availabilityStatus: "planned_milestone",
+    availabilityStatus: "oauth_framework_ready",
     targetMilestone: "M08",
     summary:
-      "Read-only crash-free session rate, unresolved issue spikes, and release regression signals via `project:read` and `event:read` auth tokens. Scheduled for Milestone 08.",
+      "Read-only crash-free session rate, PII-sanitized unresolved issue summaries, and performance percentiles (p50/p95) via `org:read`, `project:read`, and `event:read` auth tokens.",
     readOnlyGuaranteeText:
-      "Uses `org:read`, `project:read`, and `event:read` scopes only. Cannot resolve/delete issues, mutate alert rules, or upload source maps.",
+      "Uses `org:read`, `project:read`, and `event:read` scopes only; refuses write/admin tokens, blocks raw event PII endpoints, and scrubs emails/IPs/cookies/auth headers before persistence.",
     prohibitedOperationsSummary: [
-      "Cannot resolve, ignore, merge, or delete Sentry issues",
+      "Cannot resolve, ignore, merge, assign, or delete Sentry issues",
       "Cannot modify alert rules, integrations, or team memberships",
-      "Cannot upload or delete release artifacts or source maps",
+      "Cannot upload or delete release artifacts or source maps, or store raw event PII",
     ],
     resourceTypeLabel: "Sentry Project",
     resourceTypeKey: "sentry_project",
     defaultScopes: ["org:read", "project:read", "event:read"],
     capabilities: [
       {
-        capabilityKey: "issue_telemetry",
-        label: "Crash-Free Sessions & Release Regressions",
+        capabilityKey: "resource_discovery",
+        label: "Sentry Organization & Project Discovery",
         description:
-          "Reads release health session stability and aggregate issue event velocity per environment.",
+          "Discovers accessible Sentry projects and environments via GET-only endpoints.",
+        requiredScopes: ["org:read", "project:read"],
+        requiredPermissions: ["org:read", "project:read"],
+        supportedGranularities: ["daily"],
+        supportedDimensions: ["organizationSlug", "projectSlug", "platform"],
+        expectedLatencyMinutes: 2,
+        freshnessWindowMinutes: 15,
+        rateLimitPolicy: {
+          requestsPerMinute: 100,
+          burstLimit: 25,
+          retryStrategy: "retry_after_header",
+        },
+      },
+      {
+        capabilityKey: "issue_telemetry",
+        label: "Crash-Free Sessions, PII-Safe Issues & Performance Percentiles",
+        description:
+          "Reads release health session stability, aggregate issue error event velocity (distinct from unique affected users), and provider-computed p50/p95 latency.",
         requiredScopes: ["project:read", "event:read"],
         requiredPermissions: ["project:read", "event:read"],
         supportedGranularities: ["hourly", "daily"],
         supportedDimensions: ["environment", "release", "level"],
         expectedLatencyMinutes: 2,
         freshnessWindowMinutes: 15,
-        defaultStatus: "PREVIEW_ONLY",
         rateLimitPolicy: {
           requestsPerMinute: 100,
           burstLimit: 25,
