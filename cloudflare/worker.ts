@@ -109,6 +109,13 @@ import {
 } from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
+  deletePersonalAccountSafely,
+  deleteWorkspaceCascade,
+  exportPersonalAccountData,
+  listUserPrivacyConsents,
+  recordPrivacyConsent,
+} from "../src/lib/privacy/compliance";
+import {
   acceptWorkspaceInvitation,
   createWorkspaceInvitation,
   listProjectAccessGrants,
@@ -378,6 +385,45 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         webhookSecret,
       });
       return jsonResponse(result, 200);
+    }
+
+    if (pathname === "/api/privacy") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        if (url.searchParams.get("action") === "export_account") {
+          return jsonResponse(await exportPersonalAccountData(session), 200);
+        }
+        return jsonResponse({ consents: await listUserPrivacyConsents(session) }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Parameters<typeof recordPrivacyConsent>[1];
+        return jsonResponse({ consent: await recordPrivacyConsent(session, body) }, 201);
+      }
+      if (method === "DELETE") {
+        const body = (await request.json()) as {
+          scope?: "workspace" | "account";
+          workspaceId?: string;
+          confirmationSlug?: string;
+          confirmationEmail?: string;
+          deleteSoleOwnedEmptyWorkspaces?: boolean;
+        };
+        if (body.scope === "workspace") {
+          return jsonResponse(
+            await deleteWorkspaceCascade(session, {
+              workspaceId: String(body.workspaceId ?? ""),
+              confirmationSlug: String(body.confirmationSlug ?? ""),
+            }),
+            200,
+          );
+        }
+        return jsonResponse(
+          await deletePersonalAccountSafely(session, {
+            confirmationEmail: String(body.confirmationEmail ?? ""),
+            deleteSoleOwnedEmptyWorkspaces: Boolean(body.deleteSoleOwnedEmptyWorkspaces),
+          }),
+          200,
+        );
+      }
     }
 
     if (pathname === "/api/usage" && method === "GET") {
