@@ -10,15 +10,7 @@ import {
   SegmentedControl,
   WarningBanner,
 } from "@avenor/ui";
-import {
-  Coins,
-  CreditCard,
-  Database,
-  Layers,
-  RefreshCw,
-  Table2,
-  TrendingUp,
-} from "lucide-react";
+import { Coins, CreditCard, Database, Layers, RefreshCw, Table2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -67,8 +59,9 @@ export function CostReportView({
   const [loading, setLoading] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
   const [showTrendTable, setShowTrendTable] = React.useState(false);
-  const [provenanceContext, setProvenanceContext] =
-    React.useState<MetricProvenanceContext | null>(null);
+  const [provenanceContext, setProvenanceContext] = React.useState<MetricProvenanceContext | null>(
+    null,
+  );
 
   async function refreshCostReport(nextPreset: PortfolioDatePreset, nextCurrency: string) {
     setLoading(true);
@@ -105,19 +98,16 @@ export function CostReportView({
     if (!report.sourceStatus.connectedResourceId || !canManageConnections) return;
     setSyncing(true);
     try {
-      const res = await fetch(
-        `/api/projects/${encodeURIComponent(report.project.id)}/cost`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            connectedResourceId: report.sourceStatus.connectedResourceId,
-            environmentId: report.selectedEnvironmentId,
-            startDate: report.dateWindow.startDate,
-            endDate: report.dateWindow.endDate,
-          }),
-        },
-      );
+      const res = await fetch(`/api/projects/${encodeURIComponent(report.project.id)}/cost`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          connectedResourceId: report.sourceStatus.connectedResourceId,
+          environmentId: report.selectedEnvironmentId,
+          startDate: report.dateWindow.startDate,
+          endDate: report.dateWindow.endDate,
+        }),
+      });
       if (res.ok) {
         const payload = await res.json();
         if (payload?.report) {
@@ -134,8 +124,7 @@ export function CostReportView({
   function openMetricProvenance(canonicalMetricKey: string) {
     setProvenanceContext({
       canonicalMetricKey,
-      externalResourceId:
-        report.sourceStatus.externalResourceId ?? "BigQuery Cloud Billing Export",
+      externalResourceId: report.sourceStatus.externalResourceId ?? "BigQuery Cloud Billing Export",
       reportingTimezone: "UTC (Billing Account Local)",
       periodStartDate: report.dateWindow.startDate,
       periodEndDate: report.dateWindow.endDate,
@@ -160,9 +149,7 @@ export function CostReportView({
         description="Read-only Google Cloud Billing & BigQuery export spend ledger with credit amortization, service/SKU attribution, invoice finalization status, and GA4 traffic efficiency."
         badges={
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="indigo">
-              {currency ? `Currency: ${currency}` : "Multi-Currency"}
-            </Badge>
+            <Badge tone="indigo">{currency ? `Currency: ${currency}` : "Multi-Currency"}</Badge>
             <Badge
               tone={report.completenessState === "COMPLETE" ? "success" : "signal"}
               data-testid="cost-completeness-badge"
@@ -550,9 +537,7 @@ export function CostReportView({
                         <span className="font-mono font-semibold text-[#17243A]">
                           {gp.gcpProjectId}
                         </span>
-                        <Badge
-                          tone={gp.completenessState === "COMPLETE" ? "success" : "signal"}
-                        >
+                        <Badge tone={gp.completenessState === "COMPLETE" ? "success" : "signal"}>
                           {gp.completenessState}
                         </Badge>
                       </div>

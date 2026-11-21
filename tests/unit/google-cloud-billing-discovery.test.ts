@@ -18,7 +18,9 @@ function createMockFetch(
   return (async (input: RequestInfo | URL) => {
     const urlStr = typeof input === "string" ? input : input.toString();
     const matchedKey = Object.keys(handlers).find((k) => urlStr.includes(k));
-    const entry = matchedKey ? handlers[matchedKey] : { status: 404, body: { error: { message: "Not found" } } };
+    const entry = matchedKey
+      ? handlers[matchedKey]
+      : { status: 404, body: { error: { message: "Not found" } } };
     return new Response(JSON.stringify(entry?.body ?? {}), {
       status: entry?.status ?? 404,
       headers: { "content-type": "application/json" },

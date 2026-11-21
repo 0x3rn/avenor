@@ -23,7 +23,10 @@ export async function GET(
     const includeToday = searchParams.get("includeToday") === "true";
     const metricsParam = searchParams.get("metrics");
     const canonicalMetricKeys = metricsParam
-      ? metricsParam.split(",").map((m) => m.trim()).filter(Boolean)
+      ? metricsParam
+          .split(",")
+          .map((m) => m.trim())
+          .filter(Boolean)
       : undefined;
 
     const dimensionFilters: Record<string, string> = {};

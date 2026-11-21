@@ -36,9 +36,7 @@ async function WorkspaceCostsPageContent() {
         title="Portfolio Cloud Cost Intelligence"
         description="Cross-product Google Cloud Billing & BigQuery export spend comparison, credit reductions, and per-currency segmentation."
         badges={
-          <Badge tone="indigo">
-            {currency ? `Currency: ${currency}` : "Multi-Currency"}
-          </Badge>
+          <Badge tone="indigo">{currency ? `Currency: ${currency}` : "Multi-Currency"}</Badge>
         }
       />
 

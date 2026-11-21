@@ -93,7 +93,7 @@ describe("THE-130: Portfolio Overview & Project Control Center Integration", () 
        VALUES ($1, $2, 'ga4', 'Google Analytics 4', 'HEALTHY'),
               ($3, $2, 'gsc', 'Google Search Console', 'HEALTHY')`,
       [ga4ConnId, wksId, gscConnId],
-      pool
+      pool,
     );
 
     await dbQuery(
@@ -102,7 +102,7 @@ describe("THE-130: Portfolio Overview & Project Control Center Integration", () 
               ($4, $2, $3, 'properties/1002', 'ga4_property', 'Nexus Web GA4'),
               ($5, $2, $6, 'sc-domain:atlas.avenor.test', 'gsc_site', 'atlas.avenor.test')`,
       [ga4Res1Id, wksId, ga4ConnId, ga4Res2Id, gscRes1Id, gscConnId],
-      pool
+      pool,
     );
 
     // Map 1 GA4 + 1 GSC to Atlas Cloud; map 2 GA4 properties to Nexus Suite to verify non-additive user protection
@@ -126,7 +126,7 @@ describe("THE-130: Portfolio Overview & Project Control Center Integration", () 
         generateId("map"),
         ga4Res2Id,
       ],
-      pool
+      pool,
     );
 
     await upsertMetricObservationBatch([
@@ -308,7 +308,7 @@ describe("THE-130: Portfolio Overview & Project Control Center Integration", () 
       getWorkspacePortfolioOverview(ownerSession, {
         workspaceId: otherWksId,
         autoHydrateIfEmpty: false,
-      })
+      }),
     ).rejects.toThrow();
   });
 });

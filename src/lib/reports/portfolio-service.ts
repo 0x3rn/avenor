@@ -876,8 +876,7 @@ async function computeWorkspacePortfolioOverviewUncached(input: {
         environmentType: m.environment_type,
         connectionStatus: m.connection_status,
         syncState:
-          m.sync_state ??
-          (m.connection_status === "HEALTHY" ? "COMPLETED" : "CONNECTION_REVOKED"),
+          m.sync_state ?? (m.connection_status === "HEALTHY" ? "COMPLETED" : "CONNECTION_REVOKED"),
         reportingTimezone: isGscProviderKey(m.provider_key)
           ? "America/Los_Angeles"
           : typeof m.metadata?.timeZone === "string"
@@ -1462,7 +1461,8 @@ async function computeProjectControlCenterUncached(input: {
 
   // Filter mappings matching selected environment lens (or project-wide mappings where environment_id is null)
   const scopedMappings = mappingsRes.rows.filter(
-    (m) => !m.environment_id || !selectedEnvironmentId || m.environment_id === selectedEnvironmentId,
+    (m) =>
+      !m.environment_id || !selectedEnvironmentId || m.environment_id === selectedEnvironmentId,
   );
 
   const earliestQueryDate = dateWindow.compareStartDate ?? dateWindow.startDate;
@@ -1594,12 +1594,7 @@ async function computeProjectControlCenterUncached(input: {
       dateWindow.startDate,
       dateWindow.endDate,
     ),
-    gscCtr: computeProjAgg(
-      "gsc.ctr",
-      currentObsSummary,
-      dateWindow.startDate,
-      dateWindow.endDate,
-    ),
+    gscCtr: computeProjAgg("gsc.ctr", currentObsSummary, dateWindow.startDate, dateWindow.endDate),
     gscAveragePosition: computeProjAgg(
       "gsc.average_position",
       currentObsSummary,
@@ -1764,7 +1759,10 @@ async function computeProjectControlCenterUncached(input: {
     .slice(0, 6);
 
   const extractGa4PageDim = (o: StoredMetricObservation) =>
-    o.dimensions.landingPagePlusQueryString ?? o.dimensions.pagePath ?? o.dimensions.page_path ?? null;
+    o.dimensions.landingPagePlusQueryString ??
+    o.dimensions.pagePath ??
+    o.dimensions.page_path ??
+    null;
   const ga4PageObs = currentObsAllDims.filter(
     (o) => isGa4ProviderKey(o.providerKey) && Boolean(extractGa4PageDim(o)),
   );

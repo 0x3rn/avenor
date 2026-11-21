@@ -1,14 +1,7 @@
-import {
-  type AuthenticatedSessionContext,
-  authorizeProjectAccess,
-} from "@avenor/auth";
+import { type AuthenticatedSessionContext, authorizeProjectAccess } from "@avenor/auth";
 import { assertServerRuntime } from "@avenor/config";
 import { dbQuery, getDatabasePool } from "@avenor/database";
-import {
-  AppError,
-  type EnvironmentType,
-  ERROR_CODES,
-} from "@avenor/types";
+import { AppError, type EnvironmentType, ERROR_CODES } from "@avenor/types";
 import {
   aggregateMetricObservations,
   CANONICAL_METRIC_DEFINITIONS,
@@ -20,11 +13,7 @@ import {
   queryMetricObservations,
   type StoredMetricObservation,
 } from "@/lib/metrics";
-import {
-  addCalendarDays,
-  countInclusiveDays,
-  formatDateInTimeZone,
-} from "./date-window";
+import { addCalendarDays, countInclusiveDays, formatDateInTimeZone } from "./date-window";
 
 export const EXTENDED_DATE_PRESETS = [
   "today",
@@ -80,9 +69,9 @@ export function resolveComparisonDateWindow(
   const yesterdayLocal = addCalendarDays(todayLocal, -1);
 
   const rawPreset = (input?.preset ?? "28d").toLowerCase();
-  const preset: ExtendedDatePreset = (
-    EXTENDED_DATE_PRESETS as readonly string[]
-  ).includes(rawPreset)
+  const preset: ExtendedDatePreset = (EXTENDED_DATE_PRESETS as readonly string[]).includes(
+    rawPreset,
+  )
     ? (rawPreset as ExtendedDatePreset)
     : "28d";
 
@@ -151,8 +140,7 @@ export function resolveComparisonDateWindow(
     : null;
 
   const compareMode = input?.compareMode ?? "previous_period";
-  const previousEndDate =
-    compareMode === "previous_period" ? addCalendarDays(startDate, -1) : null;
+  const previousEndDate = compareMode === "previous_period" ? addCalendarDays(startDate, -1) : null;
   const previousStartDate =
     compareMode === "previous_period" && previousEndDate
       ? addCalendarDays(previousEndDate, -(dayCount - 1))
@@ -315,13 +303,7 @@ export interface MetricPeriodComparisonDetail {
   absoluteDelta: number | null;
   percentDelta: number | null;
   basisPointsDelta: number | null;
-  direction:
-    | "up"
-    | "down"
-    | "flat"
-    | "new_activity"
-    | "non_comparable"
-    | "unavailable";
+  direction: "up" | "down" | "flat" | "new_activity" | "non_comparable" | "unavailable";
   isImprovement: boolean | null;
   formattedDeltaLabel: string;
   explanation: string;
@@ -370,8 +352,7 @@ export function evaluateCanonicalMetricPeriodComparison(input: {
       direction: "non_comparable",
       isImprovement: null,
       formattedDeltaLabel: "Non-additive across scope",
-      explanation:
-        currentAgg.status !== "ok" ? currentAgg.explanation : previousAgg.explanation,
+      explanation: currentAgg.status !== "ok" ? currentAgg.explanation : previousAgg.explanation,
     };
   }
 
@@ -585,8 +566,7 @@ export function evaluateProviderBenchmarkReconciliation(input: {
         o.periodStartDate >= b.periodStartDate &&
         o.periodEndDate <= b.periodEndDate &&
         (o.dimensionKeyHash === targetDimHash ||
-          (Object.keys(b.dimensions ?? {}).length === 0 &&
-            o.dimensionKeyHash === gscWebDimHash)),
+          (Object.keys(b.dimensions ?? {}).length === 0 && o.dimensionKeyHash === gscWebDimHash)),
     );
 
     const allowedTolerance = getDeterministicMetricTolerance(def.canonicalKey);
@@ -621,10 +601,7 @@ export function evaluateProviderBenchmarkReconciliation(input: {
     });
 
     const avenorVal = agg.value;
-    const maxRevision = matchingObs.reduce(
-      (max, o) => Math.max(max, o.revisionNumber),
-      1,
-    );
+    const maxRevision = matchingObs.reduce((max, o) => Math.max(max, o.revisionNumber), 1);
     const hasSamplingOrThresholding = matchingObs.some(
       (o) =>
         Boolean(o.dataQualityFlags.isSampled) ||
@@ -871,9 +848,7 @@ export async function generateProjectReconciliationReport(
   });
 
   const currentObs = matchingFilterObs.filter(
-    (o) =>
-      o.periodStartDate >= dateWindow.startDate &&
-      o.periodEndDate <= dateWindow.endDate,
+    (o) => o.periodStartDate >= dateWindow.startDate && o.periodEndDate <= dateWindow.endDate,
   );
   const prevStart = dateWindow.previousStartDate;
   const prevEnd = dateWindow.previousEndDate;
@@ -943,9 +918,7 @@ export async function generateProjectReconciliationReport(
   const driftDetectedCount = reconciliationItems.filter(
     (i) => i.status === "DRIFT_DETECTED",
   ).length;
-  const missingCount = reconciliationItems.filter(
-    (i) => i.status === "MISSING_IN_AVENOR",
-  ).length;
+  const missingCount = reconciliationItems.filter((i) => i.status === "MISSING_IN_AVENOR").length;
 
   return {
     organizationId: access.organizationId,
@@ -974,7 +947,10 @@ function buildSelfVerificationBenchmarks(
   dateWindow: ResolvedComparisonDateWindow,
 ): ProviderExpectedMetricBenchmark[] {
   const benchmarks: ProviderExpectedMetricBenchmark[] = [];
-  const pairs = new Map<string, { canonicalMetricKey: string; externalResourceId: string; reportingTimezone: string }>();
+  const pairs = new Map<
+    string,
+    { canonicalMetricKey: string; externalResourceId: string; reportingTimezone: string }
+  >();
 
   for (const o of observations) {
     const key = `${o.canonicalMetricKey}::${o.externalResourceId}`;
@@ -1018,9 +994,7 @@ export function listSupportedDimensionsForMetrics(
   canonicalMetricKeys: readonly string[],
 ): string[] {
   if (canonicalMetricKeys.length === 0) {
-    return Array.from(
-      new Set(CANONICAL_METRIC_DEFINITIONS.flatMap((d) => d.supportedDimensions)),
-    );
+    return Array.from(new Set(CANONICAL_METRIC_DEFINITIONS.flatMap((d) => d.supportedDimensions)));
   }
   const sets = canonicalMetricKeys.map(
     (k) => new Set(getCanonicalMetricDefinition(k).supportedDimensions),

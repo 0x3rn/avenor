@@ -76,8 +76,9 @@ export function ProjectDetailView({
     "PRODUCTION";
 
   const [selectedEnvKind, setSelectedEnvKind] = React.useState<EnvironmentType>(defaultEnvKind);
-  const [controlCenter, setControlCenter] =
-    React.useState<ProjectControlCenterOverviewDto | null>(initialControlCenter);
+  const [controlCenter, setControlCenter] = React.useState<ProjectControlCenterOverviewDto | null>(
+    initialControlCenter,
+  );
   const [preset, setPreset] = React.useState<PortfolioDatePreset>(
     initialControlCenter?.dateWindow.preset ?? "28d",
   );
@@ -123,11 +124,7 @@ export function ProjectDetailView({
     project.environments.find((env) => env.type === selectedEnvKind) ?? project.environments[0];
 
   const refreshControlCenter = React.useCallback(
-    async (
-      nextEnvType: EnvironmentType,
-      nextPreset: PortfolioDatePreset,
-      nextCompare: boolean,
-    ) => {
+    async (nextEnvType: EnvironmentType, nextPreset: PortfolioDatePreset, nextCompare: boolean) => {
       setLoadingControlCenter(true);
       try {
         const envObj = project.environments.find((e) => e.type === nextEnvType);
@@ -176,9 +173,7 @@ export function ProjectDetailView({
         metricRes.resourcesIncluded.length > 0
           ? metricRes.resourcesIncluded.join(", ")
           : `${project.name} (${selectedEnvKind})`,
-      reportingTimezone: isGsc
-        ? "America/Los_Angeles"
-        : (metricRes.reportingTimezones[0] ?? "UTC"),
+      reportingTimezone: isGsc ? "America/Los_Angeles" : (metricRes.reportingTimezones[0] ?? "UTC"),
       periodStartDate: controlCenter.dateWindow.startDate,
       periodEndDate: controlCenter.dateWindow.endDate,
       completenessState: metricRes.completenessState,
@@ -480,8 +475,7 @@ export function ProjectDetailView({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {controlCenter.mappedResources.map((res) => {
-              const isGa4 =
-                res.providerKey === "ga4" || res.providerKey === "google_analytics_4";
+              const isGa4 = res.providerKey === "ga4" || res.providerKey === "google_analytics_4";
               return (
                 <Badge
                   key={res.connectedResourceId}
@@ -531,9 +525,7 @@ export function ProjectDetailView({
                 }`
               : "sessions"
           }
-          comparisonDeltaText={
-            controlCenter?.comparisons.sessions.formattedDeltaLabel ?? undefined
-          }
+          comparisonDeltaText={controlCenter?.comparisons.sessions.formattedDeltaLabel ?? undefined}
           sourceLabel="GA4"
           freshnessLabel={
             controlCenter?.metrics.sessions.latestCollectedAtIso

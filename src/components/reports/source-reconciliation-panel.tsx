@@ -161,9 +161,7 @@ export function SourceReconciliationPanel({
           >
             <option value="none">All compatible metrics (Summary scope)</option>
             <option value="gsc_web">GSC Web Search filter (searchType=web)</option>
-            <option value="incompatible_demo">
-              Test guard: Filter GA4 Sessions by GSC Query
-            </option>
+            <option value="incompatible_demo">Test guard: Filter GA4 Sessions by GSC Query</option>
           </select>
 
           <Button

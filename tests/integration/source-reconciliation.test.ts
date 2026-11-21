@@ -207,9 +207,7 @@ describe("THE-131: PostgreSQL Source Reconciliation, Historical Revisions & Tena
     expect(sessionsComp?.previousValue).toBe(400);
     expect(sessionsComp?.percentDelta).toBe(35);
 
-    const ga4Item = report.reconciliationItems.find(
-      (i) => i.canonicalMetricKey === "ga4.sessions",
-    );
+    const ga4Item = report.reconciliationItems.find((i) => i.canonicalMetricKey === "ga4.sessions");
     expect(ga4Item?.status).toBe("REVISION_SUPERSEDED");
     expect(ga4Item?.revisionCount).toBeGreaterThanOrEqual(2);
 

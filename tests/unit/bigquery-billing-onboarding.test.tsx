@@ -16,8 +16,8 @@ describe("THE-134: Guided BigQuery Cloud Billing Export Onboarding & Schema/Loca
   it("exposes all 8 customer-controlled onboarding steps without claiming Avenor modifies Google Cloud settings", () => {
     expect(BIGQUERY_BILLING_EXPORT_ONBOARDING_STEPS).toHaveLength(8);
     expect(
-      BIGQUERY_BILLING_EXPORT_ONBOARDING_STEPS.every(
-        (s) => s.officialDocUrl.startsWith("https://cloud.google.com/"),
+      BIGQUERY_BILLING_EXPORT_ONBOARDING_STEPS.every((s) =>
+        s.officialDocUrl.startsWith("https://cloud.google.com/"),
       ),
     ).toBe(true);
   });
@@ -104,10 +104,9 @@ describe("THE-134: Guided BigQuery Cloud Billing Export Onboarding & Schema/Loca
         const body = JSON.parse(String(init.body ?? "{}"));
         expect(body.dryRun).toBe(true);
         expect(body.location).toBe("europe-west1");
-        return new Response(
-          JSON.stringify({ jobComplete: true, totalBytesProcessed: "1048576" }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ jobComplete: true, totalBytesProcessed: "1048576" }), {
+          status: 200,
+        });
       }
       return new Response(JSON.stringify({}), { status: 404 });
     }) as typeof fetch;

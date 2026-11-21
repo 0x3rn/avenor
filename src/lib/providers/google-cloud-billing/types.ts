@@ -1,8 +1,6 @@
-export const GCP_BILLING_METADATA_SCOPE =
-  "https://www.googleapis.com/auth/cloud-billing.readonly";
+export const GCP_BILLING_METADATA_SCOPE = "https://www.googleapis.com/auth/cloud-billing.readonly";
 
-export const GCP_BIGQUERY_READONLY_SCOPE =
-  "https://www.googleapis.com/auth/bigquery.readonly";
+export const GCP_BIGQUERY_READONLY_SCOPE = "https://www.googleapis.com/auth/bigquery.readonly";
 
 export const GCP_CLOUD_PLATFORM_READONLY_SCOPE =
   "https://www.googleapis.com/auth/cloud-platform.read-only";

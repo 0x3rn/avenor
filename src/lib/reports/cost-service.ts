@@ -15,10 +15,7 @@ import {
   queryMetricObservations,
 } from "@/lib/metrics";
 import { syncBigQueryBillingCostLedger } from "@/lib/providers/google-cloud-billing";
-import {
-  type ReportCacheEnvelopeMetadata,
-  sharedReportCache,
-} from "./cache";
+import { type ReportCacheEnvelopeMetadata, sharedReportCache } from "./cache";
 import {
   computeMetricDeltaComparison,
   type PortfolioMetricComparison,
@@ -379,13 +376,7 @@ async function computeProjectCostIntelligenceUncached(input: {
        AND usage_date >= $4
        AND usage_date <= $5
      ORDER BY usage_date ASC`,
-    [
-      access.organizationId,
-      access.workspaceId,
-      access.projectId,
-      earliestDate,
-      dateWindow.endDate,
-    ],
+    [access.organizationId, access.workspaceId, access.projectId, earliestDate, dateWindow.endDate],
     pool,
   );
 
@@ -543,16 +534,12 @@ async function computeProjectCostIntelligenceUncached(input: {
       };
 
   const comparisons = {
-    grossCost: computeMetricDeltaComparison(
-      currentTotals.grossCost,
-      previousTotals.grossCost,
-      { invertPolarity: true },
-    ),
-    netCost: computeMetricDeltaComparison(
-      currentTotals.netCost,
-      previousTotals.netCost,
-      { invertPolarity: true },
-    ),
+    grossCost: computeMetricDeltaComparison(currentTotals.grossCost, previousTotals.grossCost, {
+      invertPolarity: true,
+    }),
+    netCost: computeMetricDeltaComparison(currentTotals.netCost, previousTotals.netCost, {
+      invertPolarity: true,
+    }),
   };
 
   // Daily trend
@@ -655,9 +642,7 @@ async function computeProjectCostIntelligenceUncached(input: {
     }
     byGcpProj.set(key, item);
   }
-  const gcpProjectBreakdown = Array.from(byGcpProj.values()).sort(
-    (a, b) => b.netCost - a.netCost,
-  );
+  const gcpProjectBreakdown = Array.from(byGcpProj.values()).sort((a, b) => b.netCost - a.netCost);
 
   // Invoice months
   const byInvoice = new Map<string, CostInvoiceMonthItem>();
@@ -750,19 +735,16 @@ async function computeProjectCostIntelligenceUncached(input: {
 
   const hasAnyProvisional = currentRows.some((r) => r.completeness_state !== "COMPLETE");
   const completenessState: MetricCompletenessState =
-    currentRows.length === 0
-      ? "UNAVAILABLE"
-      : hasAnyProvisional
-        ? "PROVISIONAL"
-        : "COMPLETE";
+    currentRows.length === 0 ? "UNAVAILABLE" : hasAnyProvisional ? "PROVISIONAL" : "COMPLETE";
 
-  const uxState: AvenorUxState = !exportResource && currentRows.length === 0
-    ? "unconnected"
-    : isMixedCurrency
-      ? "partial_coverage"
-      : currentRows.length === 0
-        ? "empty_first_use"
-        : "connected_healthy";
+  const uxState: AvenorUxState =
+    !exportResource && currentRows.length === 0
+      ? "unconnected"
+      : isMixedCurrency
+        ? "partial_coverage"
+        : currentRows.length === 0
+          ? "empty_first_use"
+          : "connected_healthy";
 
   return {
     organizationId: access.organizationId,
@@ -890,9 +872,7 @@ export async function getWorkspaceCostIntelligenceReport(
   );
 
   const filteredRows = ledgerRes.rows.filter((r) =>
-    query?.currencyFilter
-      ? r.currency.toUpperCase() === query.currencyFilter.toUpperCase()
-      : true,
+    query?.currencyFilter ? r.currency.toUpperCase() === query.currencyFilter.toUpperCase() : true,
   );
   const currentRows = filteredRows.filter(
     (r) => r.usage_date >= dateWindow.startDate && r.usage_date <= dateWindow.endDate,

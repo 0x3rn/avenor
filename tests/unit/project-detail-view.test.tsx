@@ -48,7 +48,7 @@ function makeAggMetric(
   canonicalMetricKey: string,
   displayName: string,
   value: number | null,
-  unit = "count"
+  unit = "count",
 ): AggregatedMetricResult {
   return {
     canonicalMetricKey,
@@ -338,7 +338,7 @@ describe("THE-130: Project Detail View Control Center & Portfolio Overview", () 
         canManageEnvironments={true}
         project={MOCK_PROJECT}
         initialControlCenter={MOCK_CONTROL_CENTER}
-      />
+      />,
     );
 
     expect(screen.getByRole("heading", { name: "Control Center Product" })).toBeInTheDocument();
@@ -368,7 +368,7 @@ describe("THE-130: Project Detail View Control Center & Portfolio Overview", () 
         initialOverview={MOCK_PORTFOLIO_OVERVIEW}
         governance={MOCK_GOVERNANCE}
         onboardingCompletedAt="2026-10-14T10:05:00.000Z"
-      />
+      />,
     );
 
     expect(screen.getByTestId("portfolio-kpi-grid")).toBeInTheDocument();

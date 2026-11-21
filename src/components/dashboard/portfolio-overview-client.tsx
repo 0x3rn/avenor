@@ -68,7 +68,9 @@ export function PortfolioOverviewClient({
   onboardingCompletedAt,
 }: PortfolioOverviewClientProps) {
   const [overview, setOverview] = React.useState<WorkspacePortfolioOverviewDto>(initialOverview);
-  const [preset, setPreset] = React.useState<PortfolioDatePreset>(initialOverview.dateWindow.preset);
+  const [preset, setPreset] = React.useState<PortfolioDatePreset>(
+    initialOverview.dateWindow.preset,
+  );
   const [compareEnabled, setCompareEnabled] = React.useState<boolean>(
     initialOverview.dateWindow.compareEnabled,
   );
@@ -722,10 +724,7 @@ export function PortfolioOverviewClient({
         {/* Right 4 Columns: Source Health & Attention Required + Sync Runs + Governance */}
         <div className="space-y-6 lg:col-span-4">
           {/* Attention Required & Source Health */}
-          <Card
-            className="p-5 sm:p-6 space-y-4"
-            data-testid="portfolio-attention-required-card"
-          >
+          <Card className="p-5 sm:p-6 space-y-4" data-testid="portfolio-attention-required-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-[#C67A19]" aria-hidden="true" />
@@ -780,9 +779,7 @@ export function PortfolioOverviewClient({
           {overview.recentSyncRuns.length > 0 ? (
             <Card className="p-5 sm:p-6 space-y-4" data-testid="portfolio-recent-sync-runs-card">
               <div className="flex items-center justify-between">
-                <h2 className="text-[16px] font-semibold text-[#17243A]">
-                  Recent Collection Runs
-                </h2>
+                <h2 className="text-[16px] font-semibold text-[#17243A]">Recent Collection Runs</h2>
                 <span className="text-[12px] text-[#64748B] tabular-nums">
                   {overview.recentSyncRuns.length} runs
                 </span>
@@ -810,9 +807,7 @@ export function PortfolioOverviewClient({
                         <span>
                           {run.periodStartDate} → {run.periodEndDate}
                         </span>
-                        <span>
-                          {run.recordsInserted + run.recordsUpdated} upserted
-                        </span>
+                        <span>{run.recordsInserted + run.recordsUpdated} upserted</span>
                       </div>
                     </div>
                   );

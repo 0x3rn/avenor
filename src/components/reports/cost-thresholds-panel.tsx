@@ -45,8 +45,7 @@ export function CostThresholdsPanel({
   initialThresholds = [],
   initialEvaluations = [],
 }: CostThresholdsPanelProps) {
-  const [thresholds, setThresholds] =
-    React.useState<CostSpendingThresholdDto[]>(initialThresholds);
+  const [thresholds, setThresholds] = React.useState<CostSpendingThresholdDto[]>(initialThresholds);
   const [evaluations, setEvaluations] =
     React.useState<CostThresholdEvaluationDto[]>(initialEvaluations);
   const [loading, setLoading] = React.useState(false);
@@ -66,27 +65,22 @@ export function CostThresholdsPanel({
     setErrorMessage(null);
 
     try {
-      const res = await fetch(
-        `/api/projects/${encodeURIComponent(projectId)}/cost/thresholds`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            action: "create",
-            name,
-            metricBasis,
-            periodType,
-            currency,
-            warningAmount: warningAmount.trim() ? Number(warningAmount) : null,
-            criticalAmount: Number(criticalAmount),
-          }),
-        },
-      );
+      const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/cost/thresholds`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          name,
+          metricBasis,
+          periodType,
+          currency,
+          warningAmount: warningAmount.trim() ? Number(warningAmount) : null,
+          criticalAmount: Number(criticalAmount),
+        }),
+      });
       const payload = await res.json();
       if (!res.ok) {
-        setErrorMessage(
-          payload?.error?.message ?? "Failed to save spending threshold rule.",
-        );
+        setErrorMessage(payload?.error?.message ?? "Failed to save spending threshold rule.");
         return;
       }
       if (Array.isArray(payload?.thresholds)) {
@@ -96,9 +90,7 @@ export function CostThresholdsPanel({
         setEvaluations(payload.evaluations);
       }
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Network error saving threshold rule.",
-      );
+      setErrorMessage(err instanceof Error ? err.message : "Network error saving threshold rule.");
     } finally {
       setLoading(false);
     }
@@ -108,14 +100,11 @@ export function CostThresholdsPanel({
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch(
-        `/api/projects/${encodeURIComponent(projectId)}/cost/thresholds`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "evaluate" }),
-        },
-      );
+      const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/cost/thresholds`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "evaluate" }),
+      });
       const payload = await res.json();
       if (res.ok) {
         if (Array.isArray(payload?.thresholds)) {
@@ -215,9 +204,7 @@ export function CostThresholdsPanel({
                 data-testid="thr-select-basis"
                 value={metricBasis}
                 onChange={(e) =>
-                  setMetricBasis(
-                    e.target.value === "GROSS_COST" ? "GROSS_COST" : "NET_COST",
-                  )
+                  setMetricBasis(e.target.value === "GROSS_COST" ? "GROSS_COST" : "NET_COST")
                 }
                 className="h-9 w-full rounded-[8px] border border-[#C7D2E3] bg-[#FFFFFF] px-2.5 text-[12.5px] text-[#17243A]"
               >
@@ -237,9 +224,7 @@ export function CostThresholdsPanel({
                 id="thr-period"
                 data-testid="thr-select-period"
                 value={periodType}
-                onChange={(e) =>
-                  setPeriodType(e.target.value as CostThresholdPeriodType)
-                }
+                onChange={(e) => setPeriodType(e.target.value as CostThresholdPeriodType)}
                 className="h-9 w-full rounded-[8px] border border-[#C7D2E3] bg-[#FFFFFF] px-2.5 text-[12.5px] text-[#17243A]"
               >
                 <option value="MONTHLY">Monthly (MTD)</option>
@@ -354,7 +339,10 @@ export function CostThresholdsPanel({
 
       {/* Recent Evaluation & Alert Deduplication Ledger */}
       {evaluations.length > 0 ? (
-        <div className="space-y-2 border-t border-[#DFE6F0] pt-4" data-testid="cost-evaluations-list">
+        <div
+          className="space-y-2 border-t border-[#DFE6F0] pt-4"
+          data-testid="cost-evaluations-list"
+        >
           <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#17243A]">
             <ShieldAlert className="h-3.5 w-3.5 text-[#5157D9]" aria-hidden="true" />
             <span>Threshold Evaluation &amp; Deduplication History</span>

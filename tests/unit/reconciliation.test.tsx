@@ -144,7 +144,9 @@ describe("THE-131: Date-Range Comparison, Capability Filtering & Source Reconcil
     });
     expect(invalidCrossFilter.valid).toBe(false);
     expect(invalidCrossFilter.unsupportedByMetric[0]?.canonicalMetricKey).toBe("ga4.sessions");
-    expect(invalidCrossFilter.errorMessage).toContain("ga4.sessions does not support dimension(s): query");
+    expect(invalidCrossFilter.errorMessage).toContain(
+      "ga4.sessions does not support dimension(s): query",
+    );
   });
 
   it("computes mathematically safe period comparisons for zero prior, inverted ranking position, and non-additive daily unique users", () => {

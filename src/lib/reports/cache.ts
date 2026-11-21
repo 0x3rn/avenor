@@ -166,8 +166,7 @@ export function resolveReportCachePolicy(input: {
 
   const today = input.todayDate ?? new Date().toISOString().slice(0, 10);
   const yesterday =
-    input.yesterdayDate ??
-    new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    input.yesterdayDate ?? new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
   if (input.endDate && input.endDate >= today) {
     return {
@@ -619,11 +618,7 @@ export class TenantScopedReportCache {
    * Invalidates all cached project reports AND parent workspace portfolio rollups
    * whenever observations, mappings, or sync watermarks change for a project.
    */
-  public invalidateProject(
-    organizationId: string,
-    workspaceId: string,
-    projectId: string,
-  ): number {
+  public invalidateProject(organizationId: string, workspaceId: string, projectId: string): number {
     let removed = 0;
     for (const [key, entry] of this.entries.entries()) {
       if (
@@ -691,11 +686,11 @@ export interface ResilientSourceTask<T> {
  * A failure or timeout in one source (e.g. Search Console) never crashes or blocks healthy
  * metrics from another source (e.g. GA4).
  */
-export async function executeResilientMultiSourcePartitions<
-  TMap extends Record<string, unknown>,
->(tasks: {
-  [K in keyof TMap]: ResilientSourceTask<TMap[K]>;
-}): Promise<{
+export async function executeResilientMultiSourcePartitions<TMap extends Record<string, unknown>>(
+  tasks: {
+    [K in keyof TMap]: ResilientSourceTask<TMap[K]>;
+  },
+): Promise<{
   results: TMap;
   sources: SourcePartitionHealthStatus[];
   hasDegradedSource: boolean;

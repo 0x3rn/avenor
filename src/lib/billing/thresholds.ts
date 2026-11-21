@@ -14,20 +14,13 @@ import {
 import { AppError, ERROR_CODES } from "@avenor/types";
 import { addCalendarDays } from "@/lib/reports/date-window";
 
-export type CostThresholdScopeType =
-  | "WORKSPACE"
-  | "PROJECT"
-  | "GCP_PROJECT"
-  | "SERVICE";
+export type CostThresholdScopeType = "WORKSPACE" | "PROJECT" | "GCP_PROJECT" | "SERVICE";
 
 export type CostThresholdMetricBasis = "NET_COST" | "GROSS_COST";
 
 export type CostThresholdPeriodType = "DAILY" | "WEEKLY_ROLLING" | "MONTHLY";
 
-export type CostThresholdEvaluationFrequency =
-  | "EVERY_SYNC"
-  | "DAILY"
-  | "HOURLY";
+export type CostThresholdEvaluationFrequency = "EVERY_SYNC" | "DAILY" | "HOURLY";
 
 export type CostThresholdSeverity =
   | "OK"
@@ -234,13 +227,7 @@ export function resolveThresholdPeriodBounds(
 export function evaluateSingleThresholdAgainstRows(input: {
   threshold: Pick<
     CostSpendingThresholdDto,
-    | "id"
-    | "name"
-    | "metricBasis"
-    | "periodType"
-    | "currency"
-    | "warningAmount"
-    | "criticalAmount"
+    "id" | "name" | "metricBasis" | "periodType" | "currency" | "warningAmount" | "criticalAmount"
   >;
   referenceDate: string;
   rows: ReadonlyArray<{
@@ -259,10 +246,7 @@ export function evaluateSingleThresholdAgainstRows(input: {
   shouldTriggerAlert: boolean;
   summary: string;
 } {
-  const bounds = resolveThresholdPeriodBounds(
-    input.threshold.periodType,
-    input.referenceDate,
-  );
+  const bounds = resolveThresholdPeriodBounds(input.threshold.periodType, input.referenceDate);
   const ruleCurrency = input.threshold.currency.toUpperCase();
 
   if (input.rows.length === 0) {
@@ -278,9 +262,7 @@ export function evaluateSingleThresholdAgainstRows(input: {
     };
   }
 
-  const distinctCurrencies = Array.from(
-    new Set(input.rows.map((r) => r.currency.toUpperCase())),
-  );
+  const distinctCurrencies = Array.from(new Set(input.rows.map((r) => r.currency.toUpperCase())));
   if (distinctCurrencies.length > 1 || distinctCurrencies[0] !== ruleCurrency) {
     const severity: CostThresholdSeverity = "CURRENCY_MISMATCH";
     return {
@@ -313,10 +295,7 @@ export function evaluateSingleThresholdAgainstRows(input: {
     };
   }
 
-  if (
-    input.threshold.warningAmount !== null &&
-    observedAmount >= input.threshold.warningAmount
-  ) {
+  if (input.threshold.warningAmount !== null && observedAmount >= input.threshold.warningAmount) {
     const severity: CostThresholdSeverity = "WARNING";
     return {
       ...bounds,
@@ -383,9 +362,7 @@ function mapThresholdRow(r: DbThresholdRow): CostSpendingThresholdDto {
     evaluationFrequency: r.evaluation_frequency as CostThresholdEvaluationFrequency,
     notificationChannels: r.notification_channels ?? ["IN_APP"],
     isEnabled: r.is_enabled,
-    lastEvaluatedAtIso: r.last_evaluated_at
-      ? new Date(r.last_evaluated_at).toISOString()
-      : null,
+    lastEvaluatedAtIso: r.last_evaluated_at ? new Date(r.last_evaluated_at).toISOString() : null,
     lastStatus: r.last_status as CostThresholdSeverity,
     createdByUserId: r.created_by_user_id,
     createdAtIso: new Date(r.created_at).toISOString(),
@@ -631,8 +608,7 @@ export async function evaluateCostSpendingThresholds(
   });
 
   const pool = getDatabasePool(options?.connectionString);
-  const referenceDate =
-    input.referenceDate?.trim() || new Date().toISOString().slice(0, 10);
+  const referenceDate = input.referenceDate?.trim() || new Date().toISOString().slice(0, 10);
 
   const params: unknown[] = [access.organizationId, access.workspaceId];
   let projectClause = "";
@@ -812,9 +788,7 @@ export async function evaluateCostSpendingThresholds(
             metricBasis: threshold.metricBasis,
             periodType: threshold.periodType,
           },
-          evaluatedAtIso: new Date(
-            upsertRes.rows[0]?.evaluated_at ?? new Date(),
-          ).toISOString(),
+          evaluatedAtIso: new Date(upsertRes.rows[0]?.evaluated_at ?? new Date()).toISOString(),
         };
       },
       { connectionString: options?.connectionString },

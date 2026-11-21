@@ -10,11 +10,7 @@ import {
 } from "@/lib/reports/cost-service";
 import { requireAuthenticatedAppContext } from "@/lib/workspace-context";
 
-async function ProjectCostPageContent({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
+async function ProjectCostPageContent({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const { session, governance } = await requireAuthenticatedAppContext();
 
@@ -54,11 +50,7 @@ async function ProjectCostPageContent({
   );
 }
 
-export default function ProjectCostPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
+export default function ProjectCostPage({ params }: { params: Promise<{ projectId: string }> }) {
   return (
     <React.Suspense fallback={<div className="min-h-[480px]" />}>
       <ProjectCostPageContent params={params} />

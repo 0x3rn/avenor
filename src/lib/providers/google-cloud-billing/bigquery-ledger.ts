@@ -12,12 +12,7 @@ import {
   type Queryable,
   withTransaction,
 } from "@avenor/database";
-import {
-  AppError,
-  ERROR_CODES,
-  PROVIDER_ERROR_CODES,
-  ProviderAdapterError,
-} from "@avenor/types";
+import { AppError, ERROR_CODES, PROVIDER_ERROR_CODES, ProviderAdapterError } from "@avenor/types";
 import {
   type CanonicalMetricObservationInput,
   type MetricCompletenessState,
@@ -47,7 +42,8 @@ export function assertReadOnlyBigQuerySelectStatement(sql: string): void {
   if (!/^SELECT\b/i.test(trimmed)) {
     throw new AppError({
       code: ERROR_CODES.PRODUCTION_SAFETY_VIOLATION,
-      message: "Blocked non-SELECT BigQuery statement. Only read-only SELECT queries are permitted.",
+      message:
+        "Blocked non-SELECT BigQuery statement. Only read-only SELECT queries are permitted.",
     });
   }
   if (trimmed.includes(";")) {
@@ -359,7 +355,8 @@ export function parseBigQueryCostQueryResponse(
         ? Number(Number(rawUsage).toFixed(6))
         : null;
     const usageUnitRaw = getCell(cells, "usage_unit");
-    const usageUnit = typeof usageUnitRaw === "string" && usageUnitRaw.trim() ? usageUnitRaw.trim() : null;
+    const usageUnit =
+      typeof usageUnitRaw === "string" && usageUnitRaw.trim() ? usageUnitRaw.trim() : null;
 
     const rawExportTime = getCell(cells, "latest_export_time");
     let exportTimeIso: string | null = null;
