@@ -100,6 +100,15 @@ import {
 } from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
+  acceptWorkspaceInvitation,
+  createWorkspaceInvitation,
+  listProjectAccessGrants,
+  listWorkspaceInvitations,
+  removeWorkspaceMember,
+  revokeWorkspaceInvitation,
+  updateWorkspaceMemberRole,
+} from "../src/lib/team/memberships";
+import {
   createHistoricalDataExportJob,
   downloadExportArtifactWithToken,
   executeWorkspaceRetentionCleanup,
@@ -343,6 +352,71 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/team/invitations") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const invitations = await listWorkspaceInvitations(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ invitations }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Record<string, unknown>;
+        if (body.action === "accept" && typeof body.token === "string") {
+          return jsonResponse(await acceptWorkspaceInvitation(session, body.token), 200);
+        }
+        return jsonResponse(
+          await createWorkspaceInvitation(
+            session,
+            body as Parameters<typeof createWorkspaceInvitation>[1],
+          ),
+          201,
+        );
+      }
+      if (method === "DELETE") {
+        return jsonResponse(
+          await revokeWorkspaceInvitation(session, url.searchParams.get("invitationId") ?? ""),
+          200,
+        );
+      }
+    }
+
+    if (pathname === "/api/team/members") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const grants = await listProjectAccessGrants(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ grants }, 200);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json()) as {
+          workspaceId?: string;
+          targetUserId?: string;
+          newRole?: "OWNER" | "ADMIN" | "ANALYST" | "VIEWER";
+        };
+        return jsonResponse(
+          await updateWorkspaceMemberRole(session, {
+            workspaceId: body.workspaceId,
+            targetUserId: String(body.targetUserId ?? ""),
+            newRole: body.newRole ?? "VIEWER",
+          }),
+          200,
+        );
+      }
+      if (method === "DELETE") {
+        return jsonResponse(
+          await removeWorkspaceMember(session, {
+            workspaceId: url.searchParams.get("workspaceId") ?? undefined,
+            targetUserId: url.searchParams.get("userId") ?? "",
+          }),
+          200,
+        );
+      }
     }
 
     if (pathname === "/api/exports") {

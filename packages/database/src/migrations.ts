@@ -50,6 +50,14 @@ export const CORE_SCHEMA_TABLES = [
   "insight_summaries",
   "data_export_jobs",
   "workspace_retention_policies",
+  "workspace_invitations",
+  "project_access_grants",
+  "workspace_subscriptions",
+  "subscription_webhook_events",
+  "subscription_invoices",
+  "usage_quota_reservations",
+  "privacy_consents",
+  "support_requests",
 ] as const;
 
 export type CoreSchemaTable = (typeof CORE_SCHEMA_TABLES)[number];
@@ -320,6 +328,14 @@ export async function resetTestDatabaseRecords(options?: {
   const pool = getDatabasePool(options?.connectionString);
   await pool.query(`
     TRUNCATE TABLE
+      support_requests,
+      privacy_consents,
+      usage_quota_reservations,
+      subscription_invoices,
+      subscription_webhook_events,
+      workspace_subscriptions,
+      project_access_grants,
+      workspace_invitations,
       workspace_retention_policies,
       data_export_jobs,
       insight_summaries,

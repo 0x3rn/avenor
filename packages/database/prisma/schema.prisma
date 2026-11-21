@@ -1038,3 +1038,142 @@ model WorkspaceRetentionPolicy {
 
   @@map("workspace_retention_policies")
 }
+
+model WorkspaceInvitation {
+  id               String    @id
+  organizationId   String    @map("organization_id")
+  workspaceId      String    @map("workspace_id")
+  invitedEmail     String    @map("invited_email")
+  normalizedEmail  String    @map("normalized_email")
+  role             String
+  projectIds       String[]  @map("project_ids")
+  tokenHash        String    @unique @map("token_hash")
+  status           String    @default("PENDING")
+  invitedByUserId  String?   @map("invited_by_user_id")
+  acceptedByUserId String?   @map("accepted_by_user_id")
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt       DateTime? @map("accepted_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, status, expiresAt], map: "idx_workspace_invitations_workspace_status")
+  @@map("workspace_invitations")
+}
+
+model ProjectAccessGrant {
+  id              String   @id
+  organizationId  String   @map("organization_id")
+  workspaceId     String   @map("workspace_id")
+  userId          String   @map("user_id")
+  projectId       String   @map("project_id")
+  accessLevel     String   @default("READ") @map("access_level")
+  grantedByUserId String?  @map("granted_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, userId, projectId], map: "uq_project_access_grants_user_project")
+  @@map("project_access_grants")
+}
+
+model WorkspaceSubscription {
+  id                     String    @id
+  organizationId         String    @map("organization_id")
+  workspaceId            String    @unique @map("workspace_id")
+  planCode               String    @default("FREE") @map("plan_code")
+  billingInterval        String    @default("MONTHLY") @map("billing_interval")
+  providerName           String    @default("LOCAL_FREE") @map("provider_name")
+  providerStoreId        String?   @map("provider_store_id")
+  providerCustomerId     String?   @map("provider_customer_id")
+  providerSubscriptionId String?   @map("provider_subscription_id")
+  providerVariantId      String?   @map("provider_variant_id")
+  status                 String    @default("active")
+  trialStartedAt         DateTime? @map("trial_started_at") @db.Timestamptz(6)
+  trialEndsAt            DateTime? @map("trial_ends_at") @db.Timestamptz(6)
+  currentPeriodEndsAt    DateTime? @map("current_period_ends_at") @db.Timestamptz(6)
+  endsAt                 DateTime? @map("ends_at") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("workspace_subscriptions")
+}
+
+model SubscriptionWebhookEvent {
+  id                  String    @id
+  providerName        String    @default("LEMON_SQUEEZY") @map("provider_name")
+  deliveryFingerprint String    @unique @map("delivery_fingerprint")
+  eventName           String    @map("event_name")
+  providerObjectId    String    @map("provider_object_id")
+  workspaceId         String?   @map("workspace_id")
+  isTestMode          Boolean   @default(false) @map("is_test_mode")
+  status              String    @default("RECEIVED")
+  sanitizedPayload    Json      @default("{}") @map("sanitized_payload")
+  errorSummary        String?   @map("error_summary")
+  receivedAt          DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt         DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  @@map("subscription_webhook_events")
+}
+
+model SubscriptionInvoice {
+  id                     String   @id
+  organizationId         String   @map("organization_id")
+  workspaceId            String   @map("workspace_id")
+  providerOrderId        String   @unique @map("provider_order_id")
+  providerSubscriptionId String?  @map("provider_subscription_id")
+  amountMinor            Int      @map("amount_minor")
+  taxMinor               Int      @default(0) @map("tax_minor")
+  currency               String   @default("USD")
+  status                 String
+  invoiceUrl             String?  @map("invoice_url")
+  issuedAt               DateTime @default(now()) @map("issued_at") @db.Timestamptz(6)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, issuedAt(sort: Desc)], map: "idx_subscription_invoices_workspace")
+  @@map("subscription_invoices")
+}
+
+model UsageQuotaReservation {
+  id             String   @id
+  organizationId String   @map("organization_id")
+  workspaceId    String   @map("workspace_id")
+  resourceKey    String   @map("resource_key")
+  periodKey      String   @map("period_key")
+  operationId    String   @map("operation_id")
+  amount         Int
+  status         String   @default("RESERVED")
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, resourceKey, operationId], map: "uq_usage_quota_reservation_op")
+  @@index([workspaceId, resourceKey, periodKey, status], map: "idx_usage_quota_reservations_lookup")
+  @@map("usage_quota_reservations")
+}
+
+model PrivacyConsent {
+  id            String   @id
+  userId        String   @map("user_id")
+  workspaceId   String?  @map("workspace_id")
+  consentType   String   @map("consent_type")
+  policyVersion String   @map("policy_version")
+  granted       Boolean
+  recordedAt    DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  @@index([userId, consentType, recordedAt(sort: Desc)], map: "idx_privacy_consents_user")
+  @@map("privacy_consents")
+}
+
+model SupportRequest {
+  id             String   @id
+  organizationId String?  @map("organization_id")
+  workspaceId    String?  @map("workspace_id")
+  userId         String?  @map("user_id")
+  contactEmail   String   @map("contact_email")
+  category       String
+  subject        String
+  description    String
+  status         String   @default("OPEN")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, createdAt(sort: Desc)], map: "idx_support_requests_workspace")
+  @@map("support_requests")
+}
