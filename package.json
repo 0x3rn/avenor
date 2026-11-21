@@ -56,6 +56,7 @@
     "test:anomalies": "vitest run --config vitest.config.ts tests/unit/anomalies.test.ts && vitest run --config vitest.integration.config.ts tests/integration/anomalies.test.ts",
     "test:digests": "vitest run --config vitest.config.ts tests/unit/digests.test.ts && vitest run --config vitest.integration.config.ts tests/integration/digests.test.ts",
     "test:insights": "vitest run --config vitest.config.ts tests/unit/insights.test.ts && vitest run --config vitest.integration.config.ts tests/integration/insights.test.ts",
+    "test:exports": "vitest run --config vitest.config.ts tests/unit/exports.test.ts && vitest run --config vitest.integration.config.ts tests/integration/exports.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

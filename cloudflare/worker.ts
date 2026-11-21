@@ -100,6 +100,14 @@ import {
 } from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
+  createHistoricalDataExportJob,
+  downloadExportArtifactWithToken,
+  executeWorkspaceRetentionCleanup,
+  getWorkspaceRetentionPolicy,
+  listWorkspaceExportJobs,
+  updateWorkspaceRetentionPolicy,
+} from "../src/lib/exports/service";
+import {
   generateAndPersistInsightSummary,
   type InsightEvidenceItem,
   listWorkspaceInsights,
@@ -335,6 +343,51 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/exports") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const downloadId = url.searchParams.get("downloadId");
+        const token = url.searchParams.get("token");
+        if (downloadId && token) {
+          const artifact = await downloadExportArtifactWithToken(session, downloadId, token);
+          return new Response(artifact.content, {
+            status: 200,
+            headers: {
+              "content-type": artifact.contentType,
+              "x-content-sha256": artifact.checksumSha256,
+              "cache-control": "private, no-store",
+            },
+          });
+        }
+        const workspaceId = url.searchParams.get("workspaceId") ?? undefined;
+        const [jobs, retentionPolicy] = await Promise.all([
+          listWorkspaceExportJobs(session, workspaceId),
+          getWorkspaceRetentionPolicy(session, workspaceId),
+        ]);
+        return jsonResponse({ jobs, retentionPolicy }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Record<string, unknown>;
+        if (body.action === "run_retention_cleanup") {
+          const result = await executeWorkspaceRetentionCleanup(
+            session,
+            typeof body.workspaceId === "string" ? body.workspaceId : undefined,
+          );
+          return jsonResponse(result, 200);
+        }
+        const created = await createHistoricalDataExportJob(
+          session,
+          body as Parameters<typeof createHistoricalDataExportJob>[1],
+        );
+        return jsonResponse(created, 201);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json()) as Parameters<typeof updateWorkspaceRetentionPolicy>[1];
+        const retentionPolicy = await updateWorkspaceRetentionPolicy(session, body);
+        return jsonResponse({ retentionPolicy }, 200);
+      }
     }
 
     if (pathname === "/api/insights") {
