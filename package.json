@@ -58,6 +58,7 @@
     "test:insights": "vitest run --config vitest.config.ts tests/unit/insights.test.ts && vitest run --config vitest.integration.config.ts tests/integration/insights.test.ts",
     "test:exports": "vitest run --config vitest.config.ts tests/unit/exports.test.ts && vitest run --config vitest.integration.config.ts tests/integration/exports.test.ts",
     "test:team": "vitest run --config vitest.config.ts tests/unit/team-rbac.test.ts && vitest run --config vitest.integration.config.ts tests/integration/team-invitations.test.ts",
+    "test:subscriptions": "vitest run --config vitest.config.ts tests/unit/lemon-squeezy.test.ts && vitest run --config vitest.integration.config.ts tests/integration/subscriptions.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

@@ -53,6 +53,14 @@ import {
   verifyAndMinimizeGitHubWebhook,
 } from "../src/lib/providers";
 import {
+  activateCardFreeProTrial,
+  createLemonSqueezyCheckoutSession,
+  getWorkspaceEffectiveEntitlements,
+  listWorkspaceSubscriptionInvoices,
+  processLemonSqueezyWebhookEvent,
+} from "../src/lib/billing/lemon-squeezy";
+import { AVENOR_PLAN_CATALOG, type AvenorBillingInterval } from "../src/lib/billing/plan-catalog";
+import {
   type CreateCostSpendingThresholdInput,
   createCostSpendingThreshold,
   evaluateCostSpendingThresholds,
@@ -352,6 +360,55 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/webhooks/lemon-squeezy" && method === "POST") {
+      const webhookSecret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET ?? "";
+      if (!webhookSecret) {
+        throw new AppError({
+          code: ERROR_CODES.UNAUTHENTICATED,
+          message: "LEMON_SQUEEZY_WEBHOOK_SECRET is not configured on this worker.",
+        });
+      }
+      const rawBody = await request.text();
+      const result = await processLemonSqueezyWebhookEvent({
+        rawBody,
+        signatureHeader: request.headers.get("x-signature"),
+        webhookSecret,
+      });
+      return jsonResponse(result, 200);
+    }
+
+    if (pathname === "/api/billing/subscription") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const workspaceId = url.searchParams.get("workspaceId") ?? undefined;
+        const [entitlements, invoices] = await Promise.all([
+          getWorkspaceEffectiveEntitlements(session, workspaceId),
+          listWorkspaceSubscriptionInvoices(session, workspaceId),
+        ]);
+        return jsonResponse({ entitlements, invoices, catalog: AVENOR_PLAN_CATALOG }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as {
+          action?: string;
+          workspaceId?: string;
+          planCode?: "PRO" | "TEAM";
+          interval?: AvenorBillingInterval;
+        };
+        if (body.action === "start_trial") {
+          const entitlements = await activateCardFreeProTrial(session, body.workspaceId);
+          return jsonResponse({ entitlements }, 200);
+        }
+        if (body.action === "checkout") {
+          const checkout = await createLemonSqueezyCheckoutSession(session, {
+            workspaceId: body.workspaceId,
+            planCode: body.planCode === "TEAM" ? "TEAM" : "PRO",
+            interval: body.interval === "ANNUAL" ? "ANNUAL" : "MONTHLY",
+          });
+          return jsonResponse(checkout, 200);
+        }
+      }
     }
 
     if (pathname === "/api/team/invitations") {
