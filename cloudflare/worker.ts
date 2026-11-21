@@ -48,7 +48,12 @@ import {
   getProviderCatalogEntry,
   PROVIDER_CATALOG,
   sharedGoogleTelemetryCache,
+  syncBigQueryBillingCostLedger,
 } from "../src/lib/providers";
+import {
+  getProjectCostIntelligenceReport,
+  getWorkspaceCostIntelligenceReport,
+} from "../src/lib/reports/cost-service";
 import {
   getProjectGa4RealtimeTelemetry,
   getProjectGa4StandardTelemetry,
@@ -374,6 +379,65 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         };
         const result = await triggerProjectIngestionAction(session, projectId, body);
         return jsonResponse(result, 200);
+      }
+    }
+
+    if (pathname === "/api/costs" && method === "GET") {
+      const session = await getWorkerSession(request);
+      const report = await getWorkspaceCostIntelligenceReport(session, {
+        preset: url.searchParams.get("preset"),
+        startDate: url.searchParams.get("startDate"),
+        endDate: url.searchParams.get("endDate"),
+        compare: url.searchParams.get("compare") !== "false",
+        currencyFilter: url.searchParams.get("currency"),
+      });
+      return jsonResponse(report, 200);
+    }
+
+    const projectCostMatch = pathname.match(/^\/api\/projects\/([^/]+)\/cost$/);
+    if (projectCostMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectCostMatch[1]);
+      if (method === "GET") {
+        const report = await getProjectCostIntelligenceReport(session, projectId, {
+          environmentId: url.searchParams.get("environmentId"),
+          environmentType: url.searchParams.get("environmentType") as
+            | "PRODUCTION"
+            | "STAGING"
+            | "DEVELOPMENT"
+            | null,
+          preset: url.searchParams.get("preset"),
+          startDate: url.searchParams.get("startDate"),
+          endDate: url.searchParams.get("endDate"),
+          compare: url.searchParams.get("compare") !== "false",
+          currencyFilter: url.searchParams.get("currency"),
+        });
+        return jsonResponse(report, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json().catch(() => ({}))) as {
+          connectedResourceId: string;
+          environmentId?: string | null;
+          startDate: string;
+          endDate: string;
+          gcpProjectFilter?: string | null;
+        };
+        const syncResult = await syncBigQueryBillingCostLedger(session, {
+          connectedResourceId: body.connectedResourceId,
+          projectId,
+          environmentId: body.environmentId ?? null,
+          startDate: body.startDate,
+          endDate: body.endDate,
+          gcpProjectFilter: body.gcpProjectFilter ?? null,
+        });
+        const report = await getProjectCostIntelligenceReport(session, projectId, {
+          environmentId: body.environmentId,
+          preset: "custom",
+          startDate: body.startDate,
+          endDate: body.endDate,
+          bypassCache: true,
+        });
+        return jsonResponse({ syncResult, report }, 200);
       }
     }
 

@@ -29,6 +29,7 @@
     "test:billing:discovery": "vitest run --config vitest.config.ts tests/unit/google-cloud-billing-discovery.test.ts && vitest run --config vitest.integration.config.ts tests/integration/google-cloud-billing-discovery.test.ts",
     "test:billing:onboarding": "vitest run --config vitest.config.ts tests/unit/bigquery-billing-onboarding.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/bigquery-billing-onboarding.test.ts",
     "test:billing:ledger": "vitest run --config vitest.config.ts tests/unit/bigquery-cost-ledger.test.ts && vitest run --config vitest.integration.config.ts tests/integration/bigquery-cost-ledger.test.ts",
+    "test:billing:dashboard": "vitest run --config vitest.config.ts tests/unit/cost-dashboard.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/cost-dashboard.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

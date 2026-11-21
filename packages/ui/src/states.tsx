@@ -81,6 +81,7 @@ export function MetricCard({
           {comparisonDeltaText ? (
             <p className="text-[12.5px] text-[#30415D] tabular-nums m-0">{comparisonDeltaText}</p>
           ) : null}
+          {actionSlot ? <div className="pt-1">{actionSlot}</div> : null}
         </div>
       ) : (
         <div

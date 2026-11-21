@@ -592,10 +592,23 @@ export function ProjectDetailView({
         />
         <MetricCard
           title={`${selectedEnvKind} Cloud Spend`}
-          definition="Attributed cloud billing spend and daily cost anomalies."
+          definition="Attributed cloud billing spend, service/SKU attribution, and credit reductions."
           state="unconnected"
           sourceLabel="Cloud Billing"
-          freshnessLabel="Map BigQuery in Milestone 05"
+          freshnessLabel="BigQuery Cloud Billing Export"
+          actionSlot={
+            <Link
+              href={`/projects/${project.id}/cost${
+                activeEnvironment
+                  ? `?environmentId=${encodeURIComponent(activeEnvironment.id)}`
+                  : ""
+              }`}
+              data-testid="project-open-cost-report"
+              className="text-[12px] font-semibold text-[#5157D9] hover:underline"
+            >
+              Open Cost Report →
+            </Link>
+          }
         />
         <MetricCard
           title={`${selectedEnvKind} Reliability`}
