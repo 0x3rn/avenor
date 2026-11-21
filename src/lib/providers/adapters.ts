@@ -14,6 +14,7 @@ import {
   type ReadOnlyProviderContext,
 } from "@avenor/types";
 import { getProviderCatalogEntry, PROVIDER_CATALOG } from "./catalog";
+import { createCloudflareReadOnlyAdapter } from "./cloudflare";
 import { createFirebaseMonitoringReadOnlyAdapter } from "./firebase";
 import { createGa4ReadOnlyAdapter } from "./google-analytics";
 import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
@@ -474,6 +475,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "firebase-monitoring") {
     return createFirebaseMonitoringReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "cloudflare") {
+    return createCloudflareReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

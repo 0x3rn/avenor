@@ -128,7 +128,22 @@ describe("THE-117: Read-only provider contracts and granular capability discover
       cloudflareCatalog.defaultScopes,
     );
     const edgeTraffic = cloudflareMatrix.find((c) => c.capabilityKey === "edge_traffic");
-    expect(edgeTraffic?.status).toBe("PREVIEW_ONLY");
+    expect(edgeTraffic?.status).toBe("SUPPORTED");
+    if (!edgeTraffic) {
+      throw new Error("Expected edge_traffic capability");
+    }
+
+    const previewMatrix = evaluateCapabilityMatrix(
+      [
+        {
+          ...edgeTraffic,
+          capabilityKey: "future_preview_signal",
+          defaultStatus: "PREVIEW_ONLY",
+        },
+      ],
+      cloudflareCatalog.defaultScopes,
+    );
+    expect(previewMatrix[0]?.status).toBe("PREVIEW_ONLY");
   });
 
   it("never fabricates numeric 0 when reading metrics for missing permissions or unsupported capabilities", async () => {

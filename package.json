@@ -45,6 +45,7 @@
     "test:mvp": "vitest run --config vitest.integration.config.ts tests/integration/mvp-three-product-reconciliation.test.ts",
     "test:recovery": "vitest run --config vitest.integration.config.ts tests/integration/recovery-drill.test.ts",
     "test:release": "vitest run --config vitest.config.ts tests/unit/release-gate.test.ts",
+    "test:cloudflare": "vitest run --config vitest.config.ts tests/unit/cloudflare-adapter.test.ts && vitest run --config vitest.integration.config.ts tests/integration/cloudflare-adapter.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

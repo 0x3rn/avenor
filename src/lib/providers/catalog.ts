@@ -653,12 +653,12 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     shortName: "Cloudflare",
     category: "hosting_edge",
     authMode: "api_token",
-    availabilityStatus: "planned_milestone",
+    availabilityStatus: "oauth_framework_ready",
     targetMilestone: "M08",
     summary:
-      "Read-only zone request volume, cache hit ratio, bandwidth, HTTP 4xx/5xx edge error rates, and Workers telemetry via Account/Zone Analytics Read tokens. Scheduled for Milestone 08.",
+      "Read-only zone request volume, cache hit ratio, bandwidth, HTTP 4xx/5xx edge error rates, and security telemetry via Cloudflare GraphQL Analytics (`Zone.Analytics:Read`).",
     readOnlyGuaranteeText:
-      "Requires only `Zone.Analytics:Read` and `Account.Account Analytics:Read`. Cannot edit DNS records, purge cache, modify WAF rules, or deploy Workers.",
+      "Requires only `Zone.Analytics:Read` and `Account.Account Analytics:Read`. Blocks DNS edits, cache purges, WAF/ruleset mutations, GraphQL mutations, and Workers deployments.",
     prohibitedOperationsSummary: [
       "Cannot create, edit, or delete Cloudflare DNS records",
       "Cannot purge edge cache or modify WAF / Page Rules",
@@ -672,14 +672,13 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
         capabilityKey: "edge_traffic",
         label: "Edge Requests, Cache Hit Ratio & 5xx Errors",
         description:
-          "Reads GraphQL Analytics API totals for requests, cached bandwidth, threats blocked, and status codes.",
+          "Reads GraphQL Analytics API totals for requests, weighted cache hit ratio, bandwidth, threats blocked, and 4xx/5xx status codes.",
         requiredScopes: ["zone.analytics:read"],
         requiredPermissions: ["Zone Analytics: Read"],
         supportedGranularities: ["hourly", "daily"],
         supportedDimensions: ["zoneTag", "statusMap", "cacheStatus", "country"],
         expectedLatencyMinutes: 5,
         freshnessWindowMinutes: 30,
-        defaultStatus: "PREVIEW_ONLY",
         rateLimitPolicy: {
           requestsPerMinute: 120,
           burstLimit: 30,
