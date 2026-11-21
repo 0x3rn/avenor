@@ -18,6 +18,7 @@ import { createGa4ReadOnlyAdapter } from "./google-analytics";
 import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
 import { createGscReadOnlyAdapter } from "./google-search-console";
 import { createNeonReadOnlyAdapter } from "./neon";
+import { createSupabaseReadOnlyAdapter } from "./supabase";
 
 const SAMPLE_RESOURCES_BY_PROVIDER: Record<string, readonly DiscoveredExternalResource[]> = {
   "avenor-sandbox": [
@@ -466,6 +467,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "neon") {
     return createNeonReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "supabase") {
+    return createSupabaseReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

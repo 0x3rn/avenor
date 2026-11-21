@@ -460,15 +460,15 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     shortName: "Supabase",
     category: "database_backend",
     authMode: "api_token",
-    availabilityStatus: "planned_milestone",
-    targetMilestone: "M07",
+    availabilityStatus: "oauth_framework_ready",
+    targetMilestone: "M06",
     summary:
-      "Read-only project health, database usage, auth MAU count, and edge function invocation telemetry via Management API read scopes. Scheduled for Milestone 07.",
+      "Read-only project health, database & storage usage, active connections, API/Auth request traffic, and safe aggregate Auth user count telemetry via Management API v1 read scopes (`projects:read`, `analytics:read`). Rejects `service_role` and `sb_secret` keys.",
     readOnlyGuaranteeText:
-      "Uses Supabase Management API read scopes only (`projects:read`, `analytics:read`). Never reads customer table rows, auth user PII, or storage bucket objects.",
+      "Uses Supabase Management API read scopes only (`projects:read`, `analytics:read`). Unconditionally rejects `service_role` JWTs and `sb_secret` keys, blocks `/database/query` and `/api-keys`, and never reads customer table rows, `auth.users` PII, or storage bucket objects.",
     prohibitedOperationsSummary: [
-      "Never executes SQL queries against customer tables or reads Storage objects",
-      "Cannot read `auth.users` email addresses or password hashes",
+      "Never accepts `service_role` or `sb_secret` keys and never executes SQL queries against customer tables",
+      "Cannot read `auth.users` email addresses, phone numbers, or password hashes",
       "Cannot pause, restore, migrate, or reconfigure Supabase projects",
     ],
     resourceTypeLabel: "Supabase Project",
@@ -476,17 +476,50 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     defaultScopes: ["projects:read", "analytics:read"],
     capabilities: [
       {
-        capabilityKey: "postgres_metadata",
-        label: "Project Health, Auth Volume & Storage Totals",
+        capabilityKey: "resource_discovery",
+        label: "Project, Service Health & Security Posture Discovery",
         description:
-          "Reads high-level database health status, aggregate Auth MAU counts, and storage/bandwidth utilization.",
+          "Discovers accessible Supabase projects, subsystem health (db, auth, rest, storage, realtime), and passive SSL/MFA/network posture via Management API v1.",
+        requiredScopes: ["projects:read"],
+        requiredPermissions: ["Read-Only Management Token (projects:read)"],
+        supportedGranularities: ["daily"],
+        supportedDimensions: ["projectRef", "region", "status"],
+        expectedLatencyMinutes: 5,
+        freshnessWindowMinutes: 30,
+        rateLimitPolicy: {
+          requestsPerMinute: 60,
+          burstLimit: 15,
+          retryStrategy: "retry_after_header",
+        },
+      },
+      {
+        capabilityKey: "postgres_metadata",
+        label: "Database Size, Storage Footprint, Connections & Request Volume",
+        description:
+          "Reads database size bytes, object storage size bytes, active connections, API gateway request volume, and GoTrue Auth HTTP request volume (`supabase.auth_requests`).",
         requiredScopes: ["projects:read", "analytics:read"],
-        requiredPermissions: ["Read-Only Management Token"],
-        supportedGranularities: ["daily", "monthly"],
+        requiredPermissions: ["Read-Only Management Token (projects:read, analytics:read)"],
+        supportedGranularities: ["hourly", "daily", "monthly"],
         supportedDimensions: ["projectRef", "region", "service"],
         expectedLatencyMinutes: 30,
         freshnessWindowMinutes: 60,
-        defaultStatus: "PREVIEW_ONLY",
+        rateLimitPolicy: {
+          requestsPerMinute: 60,
+          burstLimit: 15,
+          retryStrategy: "retry_after_header",
+        },
+      },
+      {
+        capabilityKey: "user_count_posture",
+        label: "Aggregate Registered Auth User Count (Zero-PII Counter)",
+        description:
+          "Reads aggregate registered Auth user count (`supabase.registered_auth_users`) only when exposed by an allowlisted aggregate usage counter endpoint, strictly separate from `supabase.auth_requests` and without querying raw `auth.users` rows.",
+        requiredScopes: ["projects:read", "analytics:read"],
+        requiredPermissions: ["Read-Only Management Token (analytics:read)"],
+        supportedGranularities: ["daily", "monthly"],
+        supportedDimensions: ["projectRef", "region"],
+        expectedLatencyMinutes: 30,
+        freshnessWindowMinutes: 60,
         rateLimitPolicy: {
           requestsPerMinute: 60,
           burstLimit: 15,
