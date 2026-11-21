@@ -57,6 +57,14 @@ import {
   listCostSpendingThresholds,
 } from "../src/lib/billing/thresholds";
 import {
+  createAlertRule,
+  evaluateAndDispatchWorkspaceAlerts,
+  getNotificationPreferences,
+  listWorkspaceAlertsAndNotifications,
+  markInAppNotificationRead,
+  updateNotificationPreferences,
+} from "../src/lib/alerts/service";
+import {
   assertPrivateSignupAllowed,
   getOnboardingProgress,
   type OnboardingStepKey,
@@ -537,6 +545,72 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         };
         const progress = await upsertOnboardingProgress(session, body);
         return jsonResponse(progress, 200);
+      }
+    }
+
+    if (pathname === "/api/alerts") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const data = await listWorkspaceAlertsAndNotifications(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse(data, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+        if (body.action === "evaluate") {
+          const wsId = typeof body.workspaceId === "string" ? body.workspaceId : undefined;
+          const outcome = await evaluateAndDispatchWorkspaceAlerts(session, { workspaceId: wsId });
+          const updated = await listWorkspaceAlertsAndNotifications(session, wsId);
+          return jsonResponse({ outcome, ...updated }, 200);
+        }
+        const rule = await createAlertRule(session, body as Parameters<typeof createAlertRule>[1]);
+        return jsonResponse({ rule }, 201);
+      }
+    }
+
+    if (pathname === "/api/notifications/preferences") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const prefs = await getNotificationPreferences(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse(prefs, 200);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json().catch(() => ({}))) as Parameters<
+          typeof updateNotificationPreferences
+        >[1];
+        const updated = await updateNotificationPreferences(session, body);
+        return jsonResponse(updated, 200);
+      }
+    }
+
+    if (pathname === "/api/notifications") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const data = await listWorkspaceAlertsAndNotifications(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse(
+          { notifications: data.notifications, deliveries: data.deliveries },
+          200,
+        );
+      }
+      if (method === "PATCH") {
+        const body = (await request.json().catch(() => ({}))) as {
+          notificationId?: string;
+          workspaceId?: string;
+        };
+        const res = await markInAppNotificationRead(
+          session,
+          body.notificationId ?? "",
+          body.workspaceId,
+        );
+        return jsonResponse(res, 200);
       }
     }
 

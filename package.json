@@ -40,6 +40,8 @@
     "test:backend:security": "vitest run --config vitest.config.ts tests/unit/backend-security-posture.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/backend-security-posture.test.ts",
     "test:backend": "vitest run --config vitest.config.ts tests/unit/backend-feasibility.test.ts tests/unit/neon-connector.test.ts tests/unit/supabase-connector.test.ts tests/unit/firebase-connector.test.ts tests/unit/backend-dashboard.test.tsx tests/unit/backend-security-posture.test.tsx",
     "test:onboarding": "vitest run --config vitest.config.ts tests/unit/private-mvp-onboarding.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/private-mvp-onboarding.test.ts",
+    "test:alerts": "vitest run --config vitest.config.ts tests/unit/alerts-and-notifications.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/alerts-and-notifications.test.ts",
+    "test:notifications": "vitest run --config vitest.config.ts tests/unit/alerts-and-notifications.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/alerts-and-notifications.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

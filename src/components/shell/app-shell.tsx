@@ -13,6 +13,7 @@ import {
 } from "@avenor/ui";
 import {
   BarChart3,
+  Bell,
   Building2,
   Compass,
   Database,
@@ -91,6 +92,12 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
     href: "/backend",
     icon: Database,
     matchPrefix: "/backend",
+  },
+  {
+    label: "Alerts & Inbox",
+    href: "/alerts",
+    icon: Bell,
+    matchPrefix: "/alerts",
   },
   {
     label: "Guided Setup",
