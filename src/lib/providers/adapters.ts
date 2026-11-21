@@ -21,6 +21,7 @@ import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
 import { createGscReadOnlyAdapter } from "./google-search-console";
 import { createNeonReadOnlyAdapter } from "./neon";
 import { createSupabaseReadOnlyAdapter } from "./supabase";
+import { createVercelReadOnlyAdapter } from "./vercel";
 
 const SAMPLE_RESOURCES_BY_PROVIDER: Record<string, readonly DiscoveredExternalResource[]> = {
   "avenor-sandbox": [
@@ -478,6 +479,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "cloudflare") {
     return createCloudflareReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "vercel") {
+    return createVercelReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

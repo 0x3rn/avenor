@@ -612,21 +612,38 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     shortName: "Vercel",
     category: "hosting_edge",
     authMode: "api_token",
-    availabilityStatus: "planned_milestone",
+    availabilityStatus: "oauth_framework_ready",
     targetMilestone: "M08",
     summary:
-      "Read-only project deployment frequency, build duration, preview vs production reliability, and domain status via read-only Vercel access tokens. Scheduled for Milestone 08.",
+      "Read-only project discovery, deployment success rate, build duration, preview vs production reliability, and FOCUS 1.3 billing charges via read-only Vercel access tokens.",
     readOnlyGuaranteeText:
-      "Inspects deployment metadata and domain health only. Cannot trigger redeployments, promote builds, or read Vercel environment variable values.",
+      "Inspects deployment metadata, project domains, and FOCUS billing charges under a strict GET-only allowlist. Cannot trigger redeployments, promote/rollback builds, or read Vercel environment variable values.",
     prohibitedOperationsSummary: [
       "Cannot trigger, cancel, promote, or rollback Vercel deployments",
-      "Cannot read or modify decrypted environment variables",
-      "Cannot alter domains, DNS records, or project settings",
+      "Cannot read or modify decrypted environment variables or secrets",
+      "Cannot alter domains, DNS records, webhooks, or project settings",
     ],
     resourceTypeLabel: "Vercel Project",
     resourceTypeKey: "vercel_project",
     defaultScopes: ["projects:read", "deployments:read"],
     capabilities: [
+      {
+        capabilityKey: "resource_discovery",
+        label: "Vercel Project & Domain Discovery",
+        description:
+          "Discovers accessible Vercel projects, frameworks, and domain bindings via GET-only endpoints.",
+        requiredScopes: ["projects:read"],
+        requiredPermissions: ["Viewer / Read-Only Token"],
+        supportedGranularities: ["daily"],
+        supportedDimensions: ["projectId", "framework", "accountId"],
+        expectedLatencyMinutes: 2,
+        freshnessWindowMinutes: 30,
+        rateLimitPolicy: {
+          requestsPerMinute: 100,
+          burstLimit: 25,
+          retryStrategy: "retry_after_header",
+        },
+      },
       {
         capabilityKey: "deployment_reliability",
         label: "Deployment Success Rate & Build Duration",
@@ -638,10 +655,27 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
         supportedDimensions: ["target", "branch", "region"],
         expectedLatencyMinutes: 5,
         freshnessWindowMinutes: 30,
-        defaultStatus: "PREVIEW_ONLY",
         rateLimitPolicy: {
           requestsPerMinute: 100,
           burstLimit: 25,
+          retryStrategy: "retry_after_header",
+        },
+      },
+      {
+        capabilityKey: "billing_focus_charges",
+        label: "FOCUS 1.3 Streaming NDJSON Billing Charges",
+        description:
+          "Reads Pro/Enterprise billing charges from GET /v1/billing/charges without summing heterogeneous currencies.",
+        requiredScopes: ["projects:read"],
+        requiredPermissions: ["Billing Viewer (Pro/Enterprise)"],
+        supportedGranularities: ["daily", "monthly"],
+        supportedDimensions: ["serviceName", "chargeCategory", "billingCurrency"],
+        expectedLatencyMinutes: 60,
+        freshnessWindowMinutes: 120,
+        requiresPaidProviderPlan: true,
+        rateLimitPolicy: {
+          requestsPerMinute: 30,
+          burstLimit: 10,
           retryStrategy: "retry_after_header",
         },
       },
