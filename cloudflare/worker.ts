@@ -100,6 +100,11 @@ import {
 } from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
+  generateAndPersistInsightSummary,
+  type InsightEvidenceItem,
+  listWorkspaceInsights,
+} from "../src/lib/intelligence/insights";
+import {
   evaluateAndPersistProjectAnomaly,
   listWorkspaceAnomalies,
   type StatisticalAnomalyInput,
@@ -330,6 +335,32 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/insights") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const insights = await listWorkspaceInsights(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ insights }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as {
+          workspaceId?: string;
+          projectId?: string | null;
+          evidence?: InsightEvidenceItem[];
+          preferAi?: boolean;
+        };
+        const insight = await generateAndPersistInsightSummary(session, {
+          workspaceId: body.workspaceId,
+          projectId: body.projectId,
+          evidence: Array.isArray(body.evidence) ? body.evidence : [],
+          preferAi: Boolean(body.preferAi),
+        });
+        return jsonResponse({ insight }, 201);
+      }
     }
 
     if (pathname === "/api/digests") {
