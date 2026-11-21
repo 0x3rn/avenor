@@ -59,6 +59,12 @@ import {
   listCostSpendingThresholds,
 } from "../src/lib/billing/thresholds";
 import {
+  createDigestSchedule,
+  listDigestSchedules,
+  registerOutboundChannel,
+  runDigestScheduleIdempotently,
+} from "../src/lib/alerts/digests";
+import {
   createAlertRule,
   evaluateAndDispatchWorkspaceAlerts,
   getNotificationPreferences,
@@ -324,6 +330,36 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/digests") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const schedules = await listDigestSchedules(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ schedules }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Record<string, unknown>;
+        if (body.action === "run" && typeof body.scheduleId === "string") {
+          const result = await runDigestScheduleIdempotently(session, body.scheduleId);
+          return jsonResponse(result, 200);
+        }
+        if (body.action === "register_channel") {
+          const channel = await registerOutboundChannel(
+            session,
+            body as Parameters<typeof registerOutboundChannel>[1],
+          );
+          return jsonResponse({ channel }, 201);
+        }
+        const schedule = await createDigestSchedule(
+          session,
+          body as Parameters<typeof createDigestSchedule>[1],
+        );
+        return jsonResponse({ schedule }, 201);
+      }
     }
 
     if (pathname === "/api/anomalies") {
