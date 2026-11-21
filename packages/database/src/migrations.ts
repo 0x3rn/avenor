@@ -38,6 +38,11 @@ export const CORE_SCHEMA_TABLES = [
   "in_app_notifications",
   "notification_deliveries",
   "notification_preferences",
+  "uptime_monitors",
+  "uptime_probe_results",
+  "uptime_incidents",
+  "operational_events",
+  "github_webhook_deliveries",
 ] as const;
 
 export type CoreSchemaTable = (typeof CORE_SCHEMA_TABLES)[number];
@@ -308,6 +313,11 @@ export async function resetTestDatabaseRecords(options?: {
   const pool = getDatabasePool(options?.connectionString);
   await pool.query(`
     TRUNCATE TABLE
+      github_webhook_deliveries,
+      operational_events,
+      uptime_incidents,
+      uptime_probe_results,
+      uptime_monitors,
       notification_preferences,
       notification_deliveries,
       in_app_notifications,
@@ -346,7 +356,8 @@ export async function resetTestDatabaseRecords(options?: {
     if (
       mig.id.startsWith("0003_milestone_04_metrics_pipeline") ||
       mig.id.startsWith("0004_milestone_05_cloud_cost_intelligence") ||
-      mig.id.startsWith("0005_milestone_06_backend_intelligence")
+      mig.id.startsWith("0005_milestone_06_backend_intelligence") ||
+      mig.id.startsWith("0007_milestone_08_hosting_and_reliability")
     ) {
       await pool.query(mig.sql);
     }

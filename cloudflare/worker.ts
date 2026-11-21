@@ -81,6 +81,13 @@ import {
   buildPortfolioReconciliationMatrix,
   type SourceConsoleBenchmarkEntry,
 } from "../src/lib/reports/mvp-reconciliation";
+import {
+  createUptimeMonitor,
+  deleteUptimeMonitor,
+  executeUptimeProbeAndRecord,
+  listWorkspaceReliabilitySnapshot,
+  toggleUptimeMonitor,
+} from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
   getProjectCostIntelligenceReport,
@@ -299,6 +306,65 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/reliability") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const snapshot = await listWorkspaceReliabilitySnapshot(session, {
+          workspaceId: url.searchParams.get("workspaceId") ?? undefined,
+          projectId: url.searchParams.get("projectId") ?? undefined,
+        });
+        return jsonResponse(snapshot, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Record<string, unknown>;
+        if (body.action === "probe" && typeof body.monitorId === "string") {
+          const probe = await executeUptimeProbeAndRecord(session, body.monitorId);
+          return jsonResponse({ probe }, 200);
+        }
+        const monitor = await createUptimeMonitor(
+          session,
+          body as Parameters<typeof createUptimeMonitor>[1],
+        );
+        return jsonResponse({ monitor }, 201);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json()) as { monitorId?: string; isEnabled?: boolean };
+        const monitor = await toggleUptimeMonitor(
+          session,
+          String(body.monitorId ?? ""),
+          Boolean(body.isEnabled),
+        );
+        return jsonResponse({ monitor }, 200);
+      }
+      if (method === "DELETE") {
+        const monitorId = url.searchParams.get("monitorId") ?? "";
+        const result = await deleteUptimeMonitor(session, monitorId);
+        return jsonResponse(result, 200);
+      }
+    }
+
+    const projectReliabilityMatch = pathname.match(/^\/api\/projects\/([^/]+)\/reliability$/);
+    if (projectReliabilityMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectReliabilityMatch[1]);
+      if (method === "GET") {
+        const snapshot = await listWorkspaceReliabilitySnapshot(session, { projectId });
+        return jsonResponse(snapshot, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Record<string, unknown>;
+        if (body.action === "probe" && typeof body.monitorId === "string") {
+          const probe = await executeUptimeProbeAndRecord(session, body.monitorId);
+          return jsonResponse({ probe }, 200);
+        }
+        const monitor = await createUptimeMonitor(session, {
+          ...(body as Parameters<typeof createUptimeMonitor>[1]),
+          projectId,
+        });
+        return jsonResponse({ monitor }, 201);
+      }
     }
 
     if (pathname === "/api/workspaces") {

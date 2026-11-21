@@ -789,3 +789,111 @@ model NotificationPreference {
   @@unique([workspaceId, userId], map: "uq_notification_preferences_user_workspace")
   @@map("notification_preferences")
 }
+
+model UptimeMonitor {
+  id                   String    @id
+  organizationId       String    @map("organization_id")
+  workspaceId          String    @map("workspace_id")
+  projectId            String    @map("project_id")
+  environmentId        String?   @map("environment_id")
+  name                 String
+  targetUrl            String    @map("target_url")
+  httpMethod           String    @default("HEAD") @map("http_method")
+  expectedStatusMin    Int       @default(200) @map("expected_status_min")
+  expectedStatusMax    Int       @default(399) @map("expected_status_max")
+  intervalSeconds      Int       @default(600) @map("interval_seconds")
+  timeoutMs            Int       @default(8000) @map("timeout_ms")
+  failureThreshold     Int       @default(3) @map("failure_threshold")
+  recoveryThreshold    Int       @default(2) @map("recovery_threshold")
+  status               String    @default("PENDING")
+  consecutiveFailures  Int       @default(0) @map("consecutive_failures")
+  consecutiveSuccesses Int       @default(0) @map("consecutive_successes")
+  probeRegion          String    @default("us-east-primary") @map("probe_region")
+  isEnabled            Boolean   @default(true) @map("is_enabled")
+  lastCheckedAt        DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  createdByUserId      String?   @map("created_by_user_id")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, projectId, isEnabled], map: "idx_uptime_monitors_workspace_project")
+  @@map("uptime_monitors")
+}
+
+model UptimeProbeResult {
+  id             String    @id
+  monitorId      String    @map("monitor_id")
+  organizationId String    @map("organization_id")
+  workspaceId    String    @map("workspace_id")
+  projectId      String    @map("project_id")
+  checkedAt      DateTime  @default(now()) @map("checked_at") @db.Timestamptz(6)
+  probeRegion    String    @default("us-east-primary") @map("probe_region")
+  resolvedIp     String?   @map("resolved_ip")
+  outcome        String
+  httpStatus     Int?      @map("http_status")
+  responseTimeMs Int?      @map("response_time_ms")
+  tlsValid       Boolean?  @map("tls_valid")
+  tlsExpiresAt   DateTime? @map("tls_expires_at") @db.Timestamptz(6)
+  errorCategory  String?   @map("error_category")
+
+  @@index([monitorId, checkedAt(sort: Desc)], map: "idx_uptime_probe_results_monitor_checked")
+  @@map("uptime_probe_results")
+}
+
+model UptimeIncident {
+  id                      String    @id
+  monitorId               String    @map("monitor_id")
+  organizationId          String    @map("organization_id")
+  workspaceId             String    @map("workspace_id")
+  projectId               String    @map("project_id")
+  status                  String    @default("CONFIRMED_OUTAGE")
+  firstFailedAt           DateTime  @map("first_failed_at") @db.Timestamptz(6)
+  confirmedAt             DateTime  @map("confirmed_at") @db.Timestamptz(6)
+  lastFailedAt            DateTime  @map("last_failed_at") @db.Timestamptz(6)
+  recoveredAt             DateTime? @map("recovered_at") @db.Timestamptz(6)
+  failureCategory         String    @map("failure_category")
+  probeRegion             String    @default("us-east-primary") @map("probe_region")
+  consecutiveFailureCount Int       @default(1) @map("consecutive_failure_count")
+  durationSeconds         Int?      @map("duration_seconds")
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, projectId, status, confirmedAt(sort: Desc)], map: "idx_uptime_incidents_workspace_project_status")
+  @@map("uptime_incidents")
+}
+
+model OperationalEvent {
+  id                String   @id
+  organizationId    String   @map("organization_id")
+  workspaceId       String   @map("workspace_id")
+  projectId         String   @map("project_id")
+  environmentId     String?  @map("environment_id")
+  providerKey       String   @map("provider_key")
+  eventType         String   @map("event_type")
+  externalEventId   String   @map("external_event_id")
+  environmentName   String   @default("PRODUCTION") @map("environment_name")
+  commitSha         String?  @map("commit_sha")
+  releaseTag        String?  @map("release_tag")
+  status            String
+  summary           String
+  sourceGranularity String   @default("EVENT") @map("source_granularity")
+  sourceTimezone    String   @default("UTC") @map("source_timezone")
+  sourceUrl         String?  @map("source_url")
+  occurredAt        DateTime @map("occurred_at") @db.Timestamptz(6)
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, providerKey, externalEventId], map: "uq_operational_events_workspace_provider_external")
+  @@index([workspaceId, projectId, environmentName, occurredAt(sort: Desc)], map: "idx_operational_events_project_occurred")
+  @@map("operational_events")
+}
+
+model GitHubWebhookDelivery {
+  deliveryId         String   @id @map("delivery_id")
+  eventType          String   @map("event_type")
+  installationId     BigInt?  @map("installation_id")
+  repositoryFullName String?  @map("repository_full_name")
+  receivedAt         DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  @@map("github_webhook_deliveries")
+}

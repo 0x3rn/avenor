@@ -49,6 +49,8 @@
     "test:vercel": "vitest run --config vitest.config.ts tests/unit/vercel-adapter.test.ts",
     "test:github": "vitest run --config vitest.config.ts tests/unit/github-adapter.test.ts",
     "test:sentry": "vitest run --config vitest.config.ts tests/unit/sentry-adapter.test.ts",
+    "test:uptime:ssrf": "vitest run --config vitest.config.ts tests/unit/uptime-ssrf.test.ts",
+    "test:reliability": "vitest run --config vitest.config.ts tests/unit/uptime-ssrf.test.ts && vitest run --config vitest.integration.config.ts tests/integration/uptime-monitors.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

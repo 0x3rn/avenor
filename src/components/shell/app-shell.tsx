@@ -94,6 +94,12 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
     matchPrefix: "/backend",
   },
   {
+    label: "Hosting & Reliability",
+    href: "/reliability",
+    icon: Server,
+    matchPrefix: "/reliability",
+  },
+  {
     label: "Alerts & Inbox",
     href: "/alerts",
     icon: Bell,
