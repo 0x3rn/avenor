@@ -53,6 +53,7 @@
     "test:reliability": "vitest run --config vitest.config.ts tests/unit/uptime-ssrf.test.ts && vitest run --config vitest.integration.config.ts tests/integration/uptime-monitors.test.ts",
     "test:correlation": "vitest run --config vitest.config.ts tests/unit/correlation.test.ts && vitest run --config vitest.integration.config.ts tests/integration/correlation-timeline.test.ts",
     "test:custom-reports": "vitest run --config vitest.config.ts tests/unit/custom-reports.test.ts && vitest run --config vitest.integration.config.ts tests/integration/custom-reports.test.ts",
+    "test:anomalies": "vitest run --config vitest.config.ts tests/unit/anomalies.test.ts && vitest run --config vitest.integration.config.ts tests/integration/anomalies.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

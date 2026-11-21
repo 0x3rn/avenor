@@ -94,6 +94,12 @@ import {
 } from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
+  evaluateAndPersistProjectAnomaly,
+  listWorkspaceAnomalies,
+  type StatisticalAnomalyInput,
+  updateAnomalyStatus,
+} from "../src/lib/intelligence/anomalies";
+import {
   createSavedReport,
   deleteSavedReport,
   executeSavedReportBenchmark,
@@ -318,6 +324,41 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         },
         200,
       );
+    }
+
+    if (pathname === "/api/anomalies") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const anomalies = await listWorkspaceAnomalies(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ anomalies }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as {
+          projectId: string;
+          evaluation: StatisticalAnomalyInput;
+        };
+        const result = await evaluateAndPersistProjectAnomaly(
+          session,
+          String(body.projectId ?? ""),
+          body.evaluation,
+        );
+        return jsonResponse(result, 200);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json()) as {
+          anomalyId?: string;
+          status?: "ACKNOWLEDGED" | "RESOLVED";
+        };
+        const anomaly = await updateAnomalyStatus(
+          session,
+          String(body.anomalyId ?? ""),
+          body.status === "RESOLVED" ? "RESOLVED" : "ACKNOWLEDGED",
+        );
+        return jsonResponse({ anomaly }, 200);
+      }
     }
 
     if (pathname === "/api/reports") {
