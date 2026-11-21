@@ -64,6 +64,7 @@
     "test:commerce-ux": "vitest run --config vitest.integration.config.ts tests/integration/support-and-pricing.test.ts",
     "test:slo": "vitest run --config vitest.config.ts tests/unit/slo-and-capacity.test.ts",
     "test:locale-economics": "vitest run --config vitest.config.ts tests/unit/locale-and-economics.test.ts",
+    "test:public-api": "vitest run --config vitest.integration.config.ts tests/integration/public-api.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

@@ -89,6 +89,17 @@ import {
   upsertOnboardingProgress,
 } from "../src/lib/onboarding/private-access";
 import {
+  authenticatePublicApiToken,
+  buildPublicApiOpenApiSpec,
+  createOutgoingWebhookSubscription,
+  createWorkspaceApiToken,
+  listWorkspaceApiTokens,
+  queryPublicProjectIncidents,
+  queryPublicProjectMetrics,
+  queryPublicProjects,
+  revokeWorkspaceApiToken,
+} from "../src/lib/public-api/tokens";
+import {
   getProjectBackendIntelligenceReport,
   getWorkspaceBackendIntelligenceReport,
 } from "../src/lib/reports/backend-service";
@@ -386,6 +397,93 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         webhookSecret,
       });
       return jsonResponse(result, 200);
+    }
+
+    if (pathname === "/api/v1/openapi.json" && method === "GET") {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${url.protocol}//${url.host}`;
+      return jsonResponse(buildPublicApiOpenApiSpec(baseUrl), 200);
+    }
+
+    if (pathname === "/api/v1/projects" && method === "GET") {
+      const principal = await authenticatePublicApiToken({
+        authorizationHeader: request.headers.get("authorization"),
+        requiredScope: "projects:read",
+      });
+      const limit = url.searchParams.get("limit")
+        ? Number(url.searchParams.get("limit"))
+        : undefined;
+      const result = await queryPublicProjects(principal, {
+        limit,
+        cursor: url.searchParams.get("cursor"),
+      });
+      return jsonResponse(result, 200);
+    }
+
+    const v1MetricsMatch = /^\/api\/v1\/projects\/([^/]+)\/metrics$/.exec(pathname);
+    if (v1MetricsMatch && method === "GET") {
+      const projectId = decodeURIComponent(v1MetricsMatch[1] ?? "");
+      const principal = await authenticatePublicApiToken({
+        authorizationHeader: request.headers.get("authorization"),
+        requiredScope: "metrics:read",
+        targetProjectId: projectId,
+      });
+      const result = await queryPublicProjectMetrics(principal, projectId, {
+        metricKey: url.searchParams.get("metricKey") ?? undefined,
+        startDate: url.searchParams.get("startDate") ?? undefined,
+        endDate: url.searchParams.get("endDate") ?? undefined,
+        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+        cursor: url.searchParams.get("cursor"),
+      });
+      return jsonResponse(result, 200);
+    }
+
+    const v1IncidentsMatch = /^\/api\/v1\/projects\/([^/]+)\/incidents$/.exec(pathname);
+    if (v1IncidentsMatch && method === "GET") {
+      const projectId = decodeURIComponent(v1IncidentsMatch[1] ?? "");
+      const principal = await authenticatePublicApiToken({
+        authorizationHeader: request.headers.get("authorization"),
+        requiredScope: "incidents:read",
+        targetProjectId: projectId,
+      });
+      const result = await queryPublicProjectIncidents(principal, projectId, {
+        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      });
+      return jsonResponse(result, 200);
+    }
+
+    if (pathname === "/api/developer/tokens") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const tokens = await listWorkspaceApiTokens(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ tokens }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Record<string, unknown>;
+        if (body.action === "create_webhook") {
+          const created = await createOutgoingWebhookSubscription(
+            session,
+            body as unknown as Parameters<typeof createOutgoingWebhookSubscription>[1],
+          );
+          return jsonResponse(created, 201);
+        }
+        const created = await createWorkspaceApiToken(
+          session,
+          body as unknown as Parameters<typeof createWorkspaceApiToken>[1],
+        );
+        return jsonResponse(created, 201);
+      }
+      if (method === "DELETE") {
+        const tokenId = url.searchParams.get("tokenId") ?? "";
+        const result = await revokeWorkspaceApiToken(
+          session,
+          tokenId,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse(result, 200);
+      }
     }
 
     if (pathname === "/api/support") {
