@@ -228,7 +228,7 @@ describe("THE-117: Read-only provider contracts and granular capability discover
 
   it("filters provider catalog by category, search query, and availability status", () => {
     const analyticsOnly = listProviderCatalogEntries({ category: "analytics" });
-    expect(analyticsOnly.map((e) => e.providerKey)).toEqual(["ga4"]);
+    expect(analyticsOnly.map((e) => e.providerKey)).toEqual(["ga4", "posthog"]);
 
     const searchResult = listProviderCatalogEntries({ search: "Neon" });
     expect(searchResult.map((e) => e.providerKey)).toEqual(["neon"]);

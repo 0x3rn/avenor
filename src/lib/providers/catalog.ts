@@ -777,6 +777,61 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
       },
     ],
   },
+  {
+    providerKey: "posthog",
+    displayName: "PostHog Product Analytics",
+    shortName: "PostHog",
+    category: "analytics",
+    authMode: "api_token",
+    availabilityStatus: "oauth_framework_ready",
+    targetMilestone: "M11",
+    summary:
+      "Read-only aggregate insights telemetry via PostHog Cloud US/EU API locked strictly to GET /api/projects and /insights endpoints with person-level PII and feature-flag routes blocked.",
+    readOnlyGuaranteeText:
+      "Reads strictly aggregate insight counts from PostHog Cloud. Blocks /persons, /events, /session_recordings, /feature_flags, and all write verbs.",
+    prohibitedOperationsSummary: [
+      "Never reads raw person records (/persons), raw events (/events), or session recordings",
+      "Cannot toggle feature flags, edit cohorts, or create/delete insights",
+    ],
+    resourceTypeLabel: "PostHog Project",
+    resourceTypeKey: "posthog_project",
+    defaultScopes: ["project:read", "insight:read"],
+    capabilities: [
+      {
+        capabilityKey: "resource_discovery",
+        label: "PostHog Project Discovery",
+        description: "Discovers PostHog project metadata under GET /api/projects/.",
+        requiredScopes: ["project:read"],
+        requiredPermissions: ["Personal API Key (project:read, insight:read)"],
+        supportedGranularities: ["daily"],
+        supportedDimensions: ["projectId", "region"],
+        expectedLatencyMinutes: 5,
+        freshnessWindowMinutes: 30,
+        rateLimitPolicy: {
+          requestsPerMinute: 60,
+          burstLimit: 15,
+          retryStrategy: "retry_after_header",
+        },
+      },
+      {
+        capabilityKey: "product_analytics_aggregates",
+        label: "Aggregate Product Insight Counts (Zero PII)",
+        description:
+          "Reads saved aggregate insight totals without ever pulling individual user profiles or raw event streams.",
+        requiredScopes: ["project:read", "insight:read"],
+        requiredPermissions: ["Personal API Key (project:read, insight:read)"],
+        supportedGranularities: ["daily", "weekly", "monthly"],
+        supportedDimensions: ["insightId", "environment"],
+        expectedLatencyMinutes: 5,
+        freshnessWindowMinutes: 30,
+        rateLimitPolicy: {
+          requestsPerMinute: 60,
+          burstLimit: 15,
+          retryStrategy: "retry_after_header",
+        },
+      },
+    ],
+  },
 ] as const;
 
 export function getProviderCatalogEntry(providerKey: string): ProviderCatalogEntry | undefined {
