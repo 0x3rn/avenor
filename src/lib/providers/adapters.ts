@@ -15,6 +15,7 @@ import {
 } from "@avenor/types";
 import { getProviderCatalogEntry, PROVIDER_CATALOG } from "./catalog";
 import { createGa4ReadOnlyAdapter } from "./google-analytics";
+import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
 import { createGscReadOnlyAdapter } from "./google-search-console";
 
 const SAMPLE_RESOURCES_BY_PROVIDER: Record<string, readonly DiscoveredExternalResource[]> = {
@@ -458,6 +459,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "gsc") {
     return createGscReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "gcp-billing") {
+    return createGcpBillingReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

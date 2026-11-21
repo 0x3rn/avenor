@@ -15,7 +15,12 @@ export const GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 
 export function isGoogleProviderKey(providerKey: string): boolean {
-  return providerKey === "ga4" || providerKey === "gsc";
+  return (
+    providerKey === "ga4" ||
+    providerKey === "gsc" ||
+    providerKey === "gcp-billing" ||
+    providerKey === "firebase"
+  );
 }
 
 export interface PendingOAuthStateDetails {

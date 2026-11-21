@@ -10,6 +10,8 @@ import {
 export const GOOGLE_ANALYTICS_ADMIN_BASE = "https://analyticsadmin.googleapis.com/v1beta";
 export const GOOGLE_ANALYTICS_DATA_BASE = "https://analyticsdata.googleapis.com/v1beta";
 export const GOOGLE_SEARCH_CONSOLE_V3_BASE = "https://www.googleapis.com/webmasters/v3";
+export const GOOGLE_CLOUD_BILLING_V1_BASE = "https://cloudbilling.googleapis.com/v1";
+export const GOOGLE_BIGQUERY_V2_BASE = "https://bigquery.googleapis.com/bigquery/v2";
 
 const ALLOWED_POST_SUFFIXES = [
   ":runReport",
@@ -17,6 +19,7 @@ const ALLOWED_POST_SUFFIXES = [
   ":runRealtimeReport",
   ":checkCompatibility",
   "/searchAnalytics/query",
+  "/queries",
 ] as const;
 
 export function isGoogleSandboxToken(accessToken: string | undefined): boolean {
@@ -76,7 +79,9 @@ export function assertAllowedGoogleReadEndpoint(rawUrl: string, method: "GET" | 
   const allowedOrigin =
     full.startsWith(`${GOOGLE_ANALYTICS_ADMIN_BASE}/`) ||
     full.startsWith(`${GOOGLE_ANALYTICS_DATA_BASE}/`) ||
-    full.startsWith(`${GOOGLE_SEARCH_CONSOLE_V3_BASE}/`);
+    full.startsWith(`${GOOGLE_SEARCH_CONSOLE_V3_BASE}/`) ||
+    full.startsWith(`${GOOGLE_CLOUD_BILLING_V1_BASE}/`) ||
+    full.startsWith(`${GOOGLE_BIGQUERY_V2_BASE}/`);
 
   if (!allowedOrigin) {
     throw new AppError({
@@ -96,6 +101,13 @@ export function assertAllowedGoogleReadEndpoint(rawUrl: string, method: "GET" | 
       });
     }
     return parsed;
+  }
+
+  if (full.startsWith(`${GOOGLE_CLOUD_BILLING_V1_BASE}/`)) {
+    throw new AppError({
+      code: ERROR_CODES.PRODUCTION_SAFETY_VIOLATION,
+      message: `Blocked Cloud Billing POST endpoint "${parsed.pathname}". Cloud Billing metadata access is strictly GET-only.`,
+    });
   }
 
   const isAllowedQueryPost = ALLOWED_POST_SUFFIXES.some((suffix) =>

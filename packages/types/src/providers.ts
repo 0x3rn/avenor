@@ -219,7 +219,7 @@ export interface ProviderCatalogEntry {
   category: ProviderCategory;
   authMode: ProviderAuthMode;
   availabilityStatus: ProviderAvailabilityStatus;
-  targetMilestone: "M02" | "M03" | "M04" | "M06" | "M07" | "M08";
+  targetMilestone: "M02" | "M03" | "M04" | "M05" | "M06" | "M07" | "M08" | "M09" | "M10" | "M11";
   summary: string;
   readOnlyGuaranteeText: string;
   prohibitedOperationsSummary: readonly string[];
