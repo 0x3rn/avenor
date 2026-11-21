@@ -19,6 +19,7 @@ import {
   ReadOnlyGuaranteeCallout,
   SectionHeader,
 } from "@avenor/ui";
+import { BigQueryExportOnboardingCard } from "@/components/connections/bigquery-export-onboarding-card";
 import {
   Activity,
   ArrowRight,
@@ -1858,6 +1859,15 @@ export function ConnectionsConsole({
             </h3>
             <CapabilityMatrixList capabilities={activeConnectionDetail.capabilities} />
           </div>
+
+          {/* Guided BigQuery Cloud Billing Export Onboarding for gcp-billing connections */}
+          {activeConnectionDetail.providerKey === "gcp-billing" ? (
+            <BigQueryExportOnboardingCard
+              workspaceId={workspaceId}
+              connectionId={activeConnectionDetail.id}
+              canManageConnections={canManageConnections}
+            />
+          ) : null}
 
           {/* Sanitized Connection Audit Trail */}
           <div className="space-y-2" data-testid="connection-audit-trail">

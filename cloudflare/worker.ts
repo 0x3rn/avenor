@@ -43,6 +43,8 @@ import {
 } from "../src/lib/connections";
 import { getProjectSyncStatusSummary, triggerProjectIngestionAction } from "../src/lib/ingestion";
 import {
+  BIGQUERY_BILLING_EXPORT_ONBOARDING_STEPS,
+  completeBigQueryBillingExportOnboarding,
   getProviderCatalogEntry,
   PROVIDER_CATALOG,
   sharedGoogleTelemetryCache,
@@ -469,6 +471,35 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       const session = await getWorkerSession(request);
       const result = await completeUserOnboarding(session, session?.activeWorkspace.id ?? "");
       return jsonResponse({ ok: true, ...result }, 200);
+    }
+
+    if (pathname === "/api/connections/gcp-billing/onboarding") {
+      if (method === "GET") {
+        return jsonResponse(
+          {
+            steps: BIGQUERY_BILLING_EXPORT_ONBOARDING_STEPS,
+            readOnlyGuarantee:
+              "Avenor never creates or modifies Google Cloud Billing exports, datasets, or IAM bindings.",
+          },
+          200,
+        );
+      }
+      if (method === "POST") {
+        const session = await getWorkerSession(request);
+        const body = (await request.json().catch(() => ({}))) as {
+          workspaceId?: string;
+          connectionId: string;
+          billingAccountId: string;
+          datasetProjectId: string;
+          queryProjectId?: string;
+          datasetId: string;
+          tableId: string;
+          projectId?: string | null;
+          environmentId?: string | null;
+        };
+        const result = await completeBigQueryBillingExportOnboarding(session, body);
+        return jsonResponse(result, 200);
+      }
     }
 
     if (pathname === "/api/connections" && method === "GET") {
