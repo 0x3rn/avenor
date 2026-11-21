@@ -12,6 +12,7 @@ import { AppError, ERROR_CODES, toAppError } from "@avenor/types";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { attachSessionCookie, clearSessionCookie } from "@/lib/auth-server";
+import { assertPrivateSignupAllowed } from "@/lib/onboarding/private-access";
 
 export async function GET(_request: NextRequest, context: { params: Promise<{ all: string[] }> }) {
   try {
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ al
 
     if (action === "signup") {
       const body = await request.json();
+      await assertPrivateSignupAllowed(String(body?.email ?? ""));
       const result = await registerUserWithDefaultOwnership(body, { ipAddress, userAgent });
       const response = NextResponse.json(
         {

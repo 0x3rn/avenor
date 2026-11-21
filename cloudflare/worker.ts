@@ -57,6 +57,13 @@ import {
   listCostSpendingThresholds,
 } from "../src/lib/billing/thresholds";
 import {
+  assertPrivateSignupAllowed,
+  getOnboardingProgress,
+  type OnboardingStepKey,
+  submitPrivateAccessRequest,
+  upsertOnboardingProgress,
+} from "../src/lib/onboarding/private-access";
+import {
   getProjectBackendIntelligenceReport,
   getWorkspaceBackendIntelligenceReport,
 } from "../src/lib/reports/backend-service";
@@ -167,7 +174,8 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       }
 
       if (action === "signup" && method === "POST") {
-        const body = await request.json();
+        const body = (await request.json()) as { email?: string };
+        await assertPrivateSignupAllowed(String(body?.email ?? ""));
         const result = await registerUserWithDefaultOwnership(body, { ipAddress, userAgent });
         return jsonResponse(
           {
@@ -487,6 +495,48 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
           bypassCache: true,
         });
         return jsonResponse({ syncResult, report }, 200);
+      }
+    }
+
+    if (pathname === "/api/access-request" && method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        email?: string;
+        productCountHint?: string | null;
+        notes?: string | null;
+      };
+      const forwardedFor = request.headers.get("x-forwarded-for");
+      const sourceIp = forwardedFor ? forwardedFor.split(",")[0]?.trim() : null;
+      const result = await submitPrivateAccessRequest({
+        name: body.name ?? "",
+        email: body.email ?? "",
+        productCountHint: body.productCountHint ?? null,
+        notes: body.notes ?? null,
+        sourceIp,
+      });
+      return jsonResponse(result, result.alreadyRequested ? 200 : 201);
+    }
+
+    if (pathname === "/api/onboarding/progress") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const progress = await getOnboardingProgress(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse(progress, 200);
+      }
+      if (method === "PATCH") {
+        const body = (await request.json().catch(() => ({}))) as {
+          workspaceId?: string;
+          currentStep: OnboardingStepKey;
+          completedSteps?: OnboardingStepKey[];
+          draftProjectId?: string | null;
+          metadata?: Record<string, unknown>;
+          markCompleted?: boolean;
+        };
+        const progress = await upsertOnboardingProgress(session, body);
+        return jsonResponse(progress, 200);
       }
     }
 

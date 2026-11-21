@@ -25,6 +25,7 @@ import {
   HeroProductCommandFrame,
   PricingSectionInteractive,
 } from "@/components/marketing/landing-interactive";
+import { PrivateAccessRequestForm } from "@/components/marketing/private-access-form";
 import {
   ArchitecturalIconTile,
   CloudflareIcon,
@@ -1755,6 +1756,7 @@ export default function HomePage() {
                 Sign in to existing workspace
               </Link>
             </div>
+            <PrivateAccessRequestForm />
           </div>
         </section>
       </main>

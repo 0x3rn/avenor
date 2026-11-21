@@ -637,3 +637,155 @@ model BackendSecurityPostureObservation {
   @@index([projectId, observedAt(sort: Desc)], map: "idx_backend_posture_project_observed")
   @@map("backend_security_posture_observations")
 }
+
+model PrivateAccessRequest {
+  id               String   @id
+  name             String
+  email            String
+  normalizedEmail  String   @unique(map: "uq_private_access_requests_email") @map("normalized_email")
+  productCountHint String?  @map("product_count_hint")
+  notes            String?
+  status           String   @default("PENDING")
+  sourceIpHash     String?  @map("source_ip_hash")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt(sort: Desc)], map: "idx_private_access_requests_status_created")
+  @@index([sourceIpHash, createdAt(sort: Desc)], map: "idx_private_access_requests_ip_created")
+  @@map("private_access_requests")
+}
+
+model OnboardingProgress {
+  id             String    @id
+  userId         String    @map("user_id")
+  organizationId String    @map("organization_id")
+  workspaceId    String    @map("workspace_id")
+  currentStep    String    @default("workspace") @map("current_step")
+  completedSteps String[]  @default(["workspace"]) @map("completed_steps")
+  draftProjectId String?   @map("draft_project_id")
+  metadata       Json      @default("{}")
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, workspaceId], map: "uq_onboarding_progress_user_workspace")
+  @@index([workspaceId, currentStep], map: "idx_onboarding_progress_workspace")
+  @@map("onboarding_progress")
+}
+
+model AlertRule {
+  id                       String   @id
+  organizationId           String   @map("organization_id")
+  workspaceId              String   @map("workspace_id")
+  projectId                String?  @map("project_id")
+  connectedResourceId      String?  @map("connected_resource_id")
+  name                     String
+  category                 String
+  metricKey                String?  @map("metric_key")
+  operator                 String   @default("GT")
+  thresholdValue           Decimal? @map("threshold_value") @db.Decimal(20, 6)
+  unit                     String?
+  currency                 String?
+  evaluationWindowMinutes  Int      @default(1440) @map("evaluation_window_minutes")
+  freshnessRequiredMinutes Int      @default(360) @map("freshness_required_minutes")
+  severity                 String   @default("WARNING")
+  isEnabled                Boolean  @default(true) @map("is_enabled")
+  createdByUserId          String?  @map("created_by_user_id")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, isEnabled, category], map: "idx_alert_rules_workspace_enabled")
+  @@index([projectId], map: "idx_alert_rules_project")
+  @@map("alert_rules")
+}
+
+model AlertIncident {
+  id                  String    @id
+  organizationId      String    @map("organization_id")
+  workspaceId         String    @map("workspace_id")
+  projectId           String?   @map("project_id")
+  connectedResourceId String?   @map("connected_resource_id")
+  alertRuleId         String?   @map("alert_rule_id")
+  category            String
+  severity            String
+  status              String    @default("OPEN")
+  dedupeKey           String    @map("dedupe_key")
+  title               String
+  summary             String
+  observedValue       Decimal?  @map("observed_value") @db.Decimal(20, 6)
+  thresholdValue      Decimal?  @map("threshold_value") @db.Decimal(20, 6)
+  unit                String?
+  currency            String?
+  evidence            Json      @default("{}")
+  firstTriggeredAt    DateTime  @default(now()) @map("first_triggered_at") @db.Timestamptz(6)
+  lastEvaluatedAt     DateTime  @default(now()) @map("last_evaluated_at") @db.Timestamptz(6)
+  resolvedAt          DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, dedupeKey], map: "uq_alert_incidents_workspace_dedupe")
+  @@index([workspaceId, status, lastEvaluatedAt(sort: Desc)], map: "idx_alert_incidents_workspace_status")
+  @@map("alert_incidents")
+}
+
+model InAppNotification {
+  id             String    @id
+  organizationId String    @map("organization_id")
+  workspaceId    String    @map("workspace_id")
+  userId         String    @map("user_id")
+  incidentId     String?   @map("incident_id")
+  category       String
+  severity       String
+  title          String
+  body           String
+  actionUrl      String?   @map("action_url")
+  isRead         Boolean   @default(false) @map("is_read")
+  readAt         DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, userId, incidentId], map: "uq_in_app_notifications_user_incident")
+  @@index([workspaceId, userId, isRead, createdAt(sort: Desc)], map: "idx_in_app_notifications_user_unread")
+  @@map("in_app_notifications")
+}
+
+model NotificationDelivery {
+  id                String    @id
+  organizationId    String    @map("organization_id")
+  workspaceId       String    @map("workspace_id")
+  userId            String    @map("user_id")
+  incidentId        String    @map("incident_id")
+  channel           String
+  recipientAddress  String?   @map("recipient_address")
+  status            String
+  attemptCount      Int       @default(1) @map("attempt_count")
+  providerName      String    @default("avenor_in_app") @map("provider_name")
+  providerMessageId String?   @map("provider_message_id")
+  errorSummary      String?   @map("error_summary")
+  nextRetryAt       DateTime? @map("next_retry_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, incidentId, userId, channel], map: "uq_notification_delivery_incident_user_channel")
+  @@index([workspaceId, channel, status, createdAt(sort: Desc)], map: "idx_notification_deliveries_workspace_status")
+  @@map("notification_deliveries")
+}
+
+model NotificationPreference {
+  id                 String   @id
+  organizationId     String   @map("organization_id")
+  workspaceId        String   @map("workspace_id")
+  userId             String   @map("user_id")
+  emailEnabled       Boolean  @default(true) @map("email_enabled")
+  inAppEnabled       Boolean  @default(true) @map("in_app_enabled")
+  enabledCategories  String[] @map("enabled_categories")
+  quietHoursEnabled  Boolean  @default(false) @map("quiet_hours_enabled")
+  quietHoursStart    String   @default("22:00") @map("quiet_hours_start")
+  quietHoursEnd      String   @default("07:00") @map("quiet_hours_end")
+  quietHoursTimezone String   @default("UTC") @map("quiet_hours_timezone")
+  quietHoursPolicy   String   @default("IN_APP_ONLY") @map("quiet_hours_policy")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, userId], map: "uq_notification_preferences_user_workspace")
+  @@map("notification_preferences")
+}
