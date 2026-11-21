@@ -2,6 +2,8 @@ import { roleHasPermission } from "@avenor/types";
 import { notFound } from "next/navigation";
 import * as React from "react";
 import { CostReportView } from "@/components/reports/cost-report-view";
+import { CostThresholdsPanel } from "@/components/reports/cost-thresholds-panel";
+import { listCostSpendingThresholds } from "@/lib/billing/thresholds";
 import {
   getProjectCostIntelligenceReport,
   type ProjectCostIntelligenceReportDto,
@@ -17,13 +19,21 @@ async function ProjectCostPageContent({
   const { session, governance } = await requireAuthenticatedAppContext();
 
   let report: ProjectCostIntelligenceReportDto;
+  let thresholdsData: Awaited<ReturnType<typeof listCostSpendingThresholds>>;
   try {
-    report = await getProjectCostIntelligenceReport(session, projectId, {
-      preset: "28d",
-    });
+    [report, thresholdsData] = await Promise.all([
+      getProjectCostIntelligenceReport(session, projectId, {
+        preset: "28d",
+      }),
+      listCostSpendingThresholds(session, { projectId }),
+    ]);
   } catch {
     notFound();
   }
+
+  const canManage =
+    roleHasPermission(governance.workspace.role, "connection:manage") ||
+    roleHasPermission(governance.workspace.role, "project:update");
 
   return (
     <CostReportView
@@ -31,6 +41,15 @@ async function ProjectCostPageContent({
       workspaceName={governance.workspace.name}
       organizationName={governance.organization.name}
       canManageConnections={roleHasPermission(governance.workspace.role, "connection:manage")}
+      thresholdsSlot={
+        <CostThresholdsPanel
+          projectId={projectId}
+          defaultCurrency={report.primaryCurrency ?? "USD"}
+          canManageThresholds={canManage}
+          initialThresholds={thresholdsData.thresholds}
+          initialEvaluations={thresholdsData.evaluations}
+        />
+      }
     />
   );
 }

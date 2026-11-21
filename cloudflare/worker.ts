@@ -51,6 +51,12 @@ import {
   syncBigQueryBillingCostLedger,
 } from "../src/lib/providers";
 import {
+  type CreateCostSpendingThresholdInput,
+  createCostSpendingThreshold,
+  evaluateCostSpendingThresholds,
+  listCostSpendingThresholds,
+} from "../src/lib/billing/thresholds";
+import {
   getProjectCostIntelligenceReport,
   getWorkspaceCostIntelligenceReport,
 } from "../src/lib/reports/cost-service";
@@ -392,6 +398,42 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         currencyFilter: url.searchParams.get("currency"),
       });
       return jsonResponse(report, 200);
+    }
+
+    const projectCostThresholdsMatch = pathname.match(
+      /^\/api\/projects\/([^/]+)\/cost\/thresholds$/,
+    );
+    if (projectCostThresholdsMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectCostThresholdsMatch[1]);
+      if (method === "GET") {
+        const data = await listCostSpendingThresholds(session, { projectId });
+        return jsonResponse(data, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json().catch(() => ({}))) as CreateCostSpendingThresholdInput & {
+          action?: "create" | "evaluate";
+          referenceDate?: string;
+        };
+        if (body.action === "evaluate") {
+          const evaluations = await evaluateCostSpendingThresholds(session, {
+            projectId,
+            referenceDate: body.referenceDate,
+          });
+          const updated = await listCostSpendingThresholds(session, { projectId });
+          return jsonResponse({ latestEvaluations: evaluations, ...updated }, 200);
+        }
+        const threshold = await createCostSpendingThreshold(session, {
+          ...body,
+          projectId,
+        });
+        const evaluations = await evaluateCostSpendingThresholds(session, {
+          projectId,
+          referenceDate: body.referenceDate,
+        });
+        const updated = await listCostSpendingThresholds(session, { projectId });
+        return jsonResponse({ threshold, latestEvaluations: evaluations, ...updated }, 201);
+      }
     }
 
     const projectCostMatch = pathname.match(/^\/api\/projects\/([^/]+)\/cost$/);
