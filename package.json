@@ -42,6 +42,7 @@
     "test:onboarding": "vitest run --config vitest.config.ts tests/unit/private-mvp-onboarding.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/private-mvp-onboarding.test.ts",
     "test:alerts": "vitest run --config vitest.config.ts tests/unit/alerts-and-notifications.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/alerts-and-notifications.test.ts",
     "test:notifications": "vitest run --config vitest.config.ts tests/unit/alerts-and-notifications.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/alerts-and-notifications.test.ts",
+    "test:mvp": "vitest run --config vitest.integration.config.ts tests/integration/mvp-three-product-reconciliation.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

@@ -75,6 +75,10 @@ import {
   getProjectBackendIntelligenceReport,
   getWorkspaceBackendIntelligenceReport,
 } from "../src/lib/reports/backend-service";
+import {
+  buildPortfolioReconciliationMatrix,
+  type SourceConsoleBenchmarkEntry,
+} from "../src/lib/reports/mvp-reconciliation";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
   getProjectCostIntelligenceReport,
@@ -647,6 +651,26 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         compare: url.searchParams.get("compare") !== "false",
       });
       return jsonResponse(report, 200);
+    }
+
+    if (pathname === "/api/portfolio/reconciliation-matrix" && method === "POST") {
+      const session = await getWorkerSession(request);
+      const body = (await request.json().catch(() => ({}))) as {
+        workspaceId?: string;
+        startDate?: string;
+        endDate?: string;
+        executionMode?: "LIVE_PROVIDER_CREDENTIALS" | "DETERMINISTIC_FIXTURE_VERIFICATION";
+        benchmarks?: SourceConsoleBenchmarkEntry[];
+      };
+      const today = new Date().toISOString().slice(0, 10);
+      const matrix = await buildPortfolioReconciliationMatrix(session, {
+        workspaceId: body.workspaceId,
+        startDate: body.startDate ?? today,
+        endDate: body.endDate ?? today,
+        executionMode: body.executionMode,
+        benchmarks: body.benchmarks ?? [],
+      });
+      return jsonResponse(matrix, 200);
     }
 
     if (pathname === "/api/portfolio" && method === "GET") {
