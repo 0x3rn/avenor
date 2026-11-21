@@ -12,6 +12,7 @@ export const GOOGLE_ANALYTICS_DATA_BASE = "https://analyticsdata.googleapis.com/
 export const GOOGLE_SEARCH_CONSOLE_V3_BASE = "https://www.googleapis.com/webmasters/v3";
 export const GOOGLE_CLOUD_BILLING_V1_BASE = "https://cloudbilling.googleapis.com/v1";
 export const GOOGLE_BIGQUERY_V2_BASE = "https://bigquery.googleapis.com/bigquery/v2";
+export const GOOGLE_CLOUD_MONITORING_V3_BASE = "https://monitoring.googleapis.com/v3";
 
 const ALLOWED_POST_SUFFIXES = [
   ":runReport",
@@ -81,7 +82,8 @@ export function assertAllowedGoogleReadEndpoint(rawUrl: string, method: "GET" | 
     full.startsWith(`${GOOGLE_ANALYTICS_DATA_BASE}/`) ||
     full.startsWith(`${GOOGLE_SEARCH_CONSOLE_V3_BASE}/`) ||
     full.startsWith(`${GOOGLE_CLOUD_BILLING_V1_BASE}/`) ||
-    full.startsWith(`${GOOGLE_BIGQUERY_V2_BASE}/`);
+    full.startsWith(`${GOOGLE_BIGQUERY_V2_BASE}/`) ||
+    full.startsWith(`${GOOGLE_CLOUD_MONITORING_V3_BASE}/`);
 
   if (!allowedOrigin) {
     throw new AppError({
@@ -100,6 +102,18 @@ export function assertAllowedGoogleReadEndpoint(rawUrl: string, method: "GET" | 
         message: `Blocked unapproved Google GET endpoint path: ${parsed.pathname}`,
       });
     }
+    if (full.startsWith(`${GOOGLE_CLOUD_MONITORING_V3_BASE}/`)) {
+      const allowedMonitoringGet =
+        /^\/v3\/projects\/[A-Za-z0-9._-]+\/(metricDescriptors|monitoredResourceDescriptors|timeSeries)$/.test(
+          parsed.pathname,
+        );
+      if (!allowedMonitoringGet) {
+        throw new AppError({
+          code: ERROR_CODES.PRODUCTION_SAFETY_VIOLATION,
+          message: `Blocked unapproved Cloud Monitoring GET path: ${parsed.pathname}`,
+        });
+      }
+    }
     return parsed;
   }
 
@@ -107,6 +121,13 @@ export function assertAllowedGoogleReadEndpoint(rawUrl: string, method: "GET" | 
     throw new AppError({
       code: ERROR_CODES.PRODUCTION_SAFETY_VIOLATION,
       message: `Blocked Cloud Billing POST endpoint "${parsed.pathname}". Cloud Billing metadata access is strictly GET-only.`,
+    });
+  }
+
+  if (full.startsWith(`${GOOGLE_CLOUD_MONITORING_V3_BASE}/`)) {
+    throw new AppError({
+      code: ERROR_CODES.PRODUCTION_SAFETY_VIOLATION,
+      message: `Blocked Cloud Monitoring POST endpoint "${parsed.pathname}". Cloud Monitoring telemetry access is strictly GET-only.`,
     });
   }
 

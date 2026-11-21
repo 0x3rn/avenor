@@ -1,6 +1,7 @@
 export * from "./adapters";
 export * from "./backend-feasibility";
 export * from "./catalog";
+export * from "./firebase";
 export * from "./google-analytics";
 export * from "./google-cloud-billing";
 export * from "./google-search-console";

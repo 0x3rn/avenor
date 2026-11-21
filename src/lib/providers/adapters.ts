@@ -14,6 +14,7 @@ import {
   type ReadOnlyProviderContext,
 } from "@avenor/types";
 import { getProviderCatalogEntry, PROVIDER_CATALOG } from "./catalog";
+import { createFirebaseMonitoringReadOnlyAdapter } from "./firebase";
 import { createGa4ReadOnlyAdapter } from "./google-analytics";
 import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
 import { createGscReadOnlyAdapter } from "./google-search-console";
@@ -470,6 +471,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "supabase") {
     return createSupabaseReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "firebase-monitoring") {
+    return createFirebaseMonitoringReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

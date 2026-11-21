@@ -35,6 +35,7 @@
     "test:backend:capabilities": "vitest run --config vitest.config.ts tests/unit/backend-feasibility.test.ts",
     "test:backend:neon": "vitest run --config vitest.config.ts tests/unit/neon-connector.test.ts && vitest run --config vitest.integration.config.ts tests/integration/neon-connector.test.ts",
     "test:backend:supabase": "vitest run --config vitest.config.ts tests/unit/supabase-connector.test.ts && vitest run --config vitest.integration.config.ts tests/integration/supabase-connector.test.ts",
+    "test:backend:firebase": "vitest run --config vitest.config.ts tests/unit/firebase-connector.test.ts && vitest run --config vitest.integration.config.ts tests/integration/firebase-connector.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",
