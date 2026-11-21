@@ -1,4 +1,5 @@
 export * from "./adapters";
+export * from "./backend-feasibility";
 export * from "./catalog";
 export * from "./google-analytics";
 export * from "./google-cloud-billing";
