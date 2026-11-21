@@ -108,6 +108,7 @@ import {
   toggleUptimeMonitor,
 } from "../src/lib/reliability/uptime";
 import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
+import { listWorkspaceSupportRequests, submitSupportRequest } from "../src/lib/support/service";
 import {
   deletePersonalAccountSafely,
   deleteWorkspaceCascade,
@@ -385,6 +386,22 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         webhookSecret,
       });
       return jsonResponse(result, 200);
+    }
+
+    if (pathname === "/api/support") {
+      const session = await getWorkerSession(request);
+      if (method === "GET") {
+        const requests = await listWorkspaceSupportRequests(
+          session,
+          url.searchParams.get("workspaceId") ?? undefined,
+        );
+        return jsonResponse({ requests }, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json()) as Parameters<typeof submitSupportRequest>[1];
+        const ticket = await submitSupportRequest(session, body);
+        return jsonResponse({ ticket }, 201);
+      }
     }
 
     if (pathname === "/api/privacy") {

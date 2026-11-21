@@ -61,6 +61,7 @@
     "test:subscriptions": "vitest run --config vitest.config.ts tests/unit/lemon-squeezy.test.ts && vitest run --config vitest.integration.config.ts tests/integration/subscriptions.test.ts",
     "test:quotas": "vitest run --config vitest.integration.config.ts tests/integration/quotas.test.ts",
     "test:privacy": "vitest run --config vitest.integration.config.ts tests/integration/privacy.test.ts",
+    "test:commerce-ux": "vitest run --config vitest.integration.config.ts tests/integration/support-and-pricing.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",
