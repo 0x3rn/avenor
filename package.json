@@ -37,6 +37,8 @@
     "test:backend:supabase": "vitest run --config vitest.config.ts tests/unit/supabase-connector.test.ts && vitest run --config vitest.integration.config.ts tests/integration/supabase-connector.test.ts",
     "test:backend:firebase": "vitest run --config vitest.config.ts tests/unit/firebase-connector.test.ts && vitest run --config vitest.integration.config.ts tests/integration/firebase-connector.test.ts",
     "test:backend:dashboard": "vitest run --config vitest.config.ts tests/unit/backend-dashboard.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/backend-dashboard.test.ts",
+    "test:backend:security": "vitest run --config vitest.config.ts tests/unit/backend-security-posture.test.tsx && vitest run --config vitest.integration.config.ts tests/integration/backend-security-posture.test.ts",
+    "test:backend": "vitest run --config vitest.config.ts tests/unit/backend-feasibility.test.ts tests/unit/neon-connector.test.ts tests/unit/supabase-connector.test.ts tests/unit/firebase-connector.test.ts tests/unit/backend-dashboard.test.tsx tests/unit/backend-security-posture.test.tsx",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

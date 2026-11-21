@@ -60,6 +60,7 @@ import {
   getProjectBackendIntelligenceReport,
   getWorkspaceBackendIntelligenceReport,
 } from "../src/lib/reports/backend-service";
+import { getAndPersistProjectSecurityPosture } from "../src/lib/reports/security-posture";
 import {
   getProjectCostIntelligenceReport,
   getWorkspaceCostIntelligenceReport,
@@ -498,6 +499,16 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         compare: url.searchParams.get("compare") !== "false",
       });
       return jsonResponse(report, 200);
+    }
+
+    const projectBackendPostureMatch = pathname.match(
+      /^\/api\/projects\/([^/]+)\/backend\/security-posture$/,
+    );
+    if (projectBackendPostureMatch && method === "GET") {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectBackendPostureMatch[1]);
+      const posture = await getAndPersistProjectSecurityPosture(session, projectId);
+      return jsonResponse(posture, 200);
     }
 
     const projectBackendMatch = pathname.match(/^\/api\/projects\/([^/]+)\/backend$/);
