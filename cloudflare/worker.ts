@@ -47,8 +47,10 @@ import {
   completeBigQueryBillingExportOnboarding,
   getProviderCatalogEntry,
   PROVIDER_CATALOG,
+  sharedGitHubWebhookDedupe,
   sharedGoogleTelemetryCache,
   syncBigQueryBillingCostLedger,
+  verifyAndMinimizeGitHubWebhook,
 } from "../src/lib/providers";
 import {
   type CreateCostSpendingThresholdInput,
@@ -268,6 +270,34 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       return jsonResponse(
         { error: { code: ERROR_CODES.NOT_FOUND, message: `Unknown auth route: ${action}` } },
         404,
+      );
+    }
+
+    if (pathname === "/api/webhooks/github" && method === "POST") {
+      const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET ?? "";
+      if (!webhookSecret) {
+        throw new AppError({
+          code: ERROR_CODES.UNAUTHENTICATED,
+          message: "GITHUB_WEBHOOK_SECRET is not configured on this worker.",
+        });
+      }
+      const rawBody = await request.text();
+      const event = verifyAndMinimizeGitHubWebhook({
+        rawBody,
+        eventHeader: request.headers.get("x-github-event"),
+        deliveryIdHeader: request.headers.get("x-github-delivery"),
+        signatureHeader: request.headers.get("x-hub-signature-256"),
+        webhookSecret,
+      });
+      const isNewDelivery = sharedGitHubWebhookDedupe.recordIfNew(event.deliveryId);
+      return jsonResponse(
+        {
+          accepted: true,
+          deduplicated: !isNewDelivery,
+          deliveryId: event.deliveryId,
+          event,
+        },
+        200,
       );
     }
 

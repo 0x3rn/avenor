@@ -3,6 +3,7 @@ export * from "./backend-feasibility";
 export * from "./catalog";
 export * from "./cloudflare";
 export * from "./firebase";
+export * from "./github";
 export * from "./google-analytics";
 export * from "./google-cloud-billing";
 export * from "./google-search-console";

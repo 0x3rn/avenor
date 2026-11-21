@@ -16,6 +16,7 @@ import {
 import { getProviderCatalogEntry, PROVIDER_CATALOG } from "./catalog";
 import { createCloudflareReadOnlyAdapter } from "./cloudflare";
 import { createFirebaseMonitoringReadOnlyAdapter } from "./firebase";
+import { createGitHubReadOnlyAdapter } from "./github";
 import { createGa4ReadOnlyAdapter } from "./google-analytics";
 import { createGcpBillingReadOnlyAdapter } from "./google-cloud-billing";
 import { createGscReadOnlyAdapter } from "./google-search-console";
@@ -482,6 +483,9 @@ function instantiateProviderAdapter(entry: ProviderCatalogEntry): ReadOnlyProvid
   }
   if (entry.providerKey === "vercel") {
     return createVercelReadOnlyAdapter(entry);
+  }
+  if (entry.providerKey === "github") {
+    return createGitHubReadOnlyAdapter(entry);
   }
   return new DeterministicReadOnlyProviderAdapter(entry);
 }

@@ -295,14 +295,13 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
         capabilityKey: "repository_activity",
         label: "Release & Workflow Run Cadence",
         description:
-          "Observes release timestamps, deployment statuses, and workflow pass/fail ratios.",
+          "Observes release timestamps, deployment statuses, and workflow pass/fail ratios (distinguishing status vs conclusion and run attempts).",
         requiredScopes: ["repo:status"],
         requiredPermissions: ["Deployments: Read-only", "Actions: Read-only"],
         supportedGranularities: ["hourly", "daily", "weekly"],
         supportedDimensions: ["workflow", "branch", "environment"],
         expectedLatencyMinutes: 5,
         freshnessWindowMinutes: 30,
-        defaultStatus: "PREVIEW_ONLY",
         rateLimitPolicy: {
           requestsPerMinute: 80,
           burstLimit: 25,
