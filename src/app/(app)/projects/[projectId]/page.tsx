@@ -4,6 +4,10 @@ import { notFound } from "next/navigation";
 import * as React from "react";
 
 import { ProjectDetailView } from "@/components/projects/project-detail-view";
+import {
+  getProjectControlCenterOverview,
+  type ProjectControlCenterOverviewDto,
+} from "@/lib/reports/portfolio-service";
 import { requireAuthenticatedAppContext } from "@/lib/workspace-context";
 
 async function ProjectDetailPageContent({ params }: { params: Promise<{ projectId: string }> }) {
@@ -11,8 +15,14 @@ async function ProjectDetailPageContent({ params }: { params: Promise<{ projectI
   const { session, governance } = await requireAuthenticatedAppContext();
 
   let project: LogicalProjectSummary;
+  let initialControlCenter: ProjectControlCenterOverviewDto | undefined;
   try {
-    project = await getLogicalProjectById(session, projectId, governance.workspace.id);
+    [project, initialControlCenter] = await Promise.all([
+      getLogicalProjectById(session, projectId, governance.workspace.id),
+      getProjectControlCenterOverview(session, projectId, {
+        preset: "28d",
+      }),
+    ]);
   } catch {
     notFound();
   }
@@ -30,6 +40,7 @@ async function ProjectDetailPageContent({ params }: { params: Promise<{ projectI
         roleHasPermission(role, "environment:update")
       }
       project={project}
+      initialControlCenter={initialControlCenter}
     />
   );
 }

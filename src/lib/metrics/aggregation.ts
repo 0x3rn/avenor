@@ -93,6 +93,59 @@ export function aggregateMetricObservations(input: {
       : null;
 
   if (matching.length === 0) {
+    if (
+      def.aggregationRule === "WEIGHTED_RATIO" &&
+      def.numeratorMetricKey &&
+      def.denominatorMetricKey
+    ) {
+      const hasNumerator = input.observations.some(
+        (o) => o.canonicalMetricKey === def.numeratorMetricKey,
+      );
+      const hasDenominator = input.observations.some(
+        (o) => o.canonicalMetricKey === def.denominatorMetricKey,
+      );
+      if (hasNumerator && hasDenominator) {
+        const numRes = aggregateMetricObservations({
+          canonicalMetricKey: def.numeratorMetricKey,
+          observations: input.observations,
+          requestedStartDate: input.requestedStartDate,
+          requestedEndDate: input.requestedEndDate,
+        });
+        const denRes = aggregateMetricObservations({
+          canonicalMetricKey: def.denominatorMetricKey,
+          observations: input.observations,
+          requestedStartDate: input.requestedStartDate,
+          requestedEndDate: input.requestedEndDate,
+        });
+        if (
+          numRes.status === "ok" &&
+          denRes.status === "ok" &&
+          numRes.value !== null &&
+          denRes.value !== null &&
+          denRes.value > 0
+        ) {
+          return {
+            canonicalMetricKey: def.canonicalKey,
+            displayName: def.displayName,
+            unit: def.unit,
+            valueType: def.valueType,
+            aggregationRule: def.aggregationRule,
+            value: Number((numRes.value / denRes.value).toFixed(6)),
+            numeratorSum: numRes.value,
+            denominatorSum: denRes.value,
+            uxState: denRes.uxState,
+            completenessState: denRes.completenessState,
+            status: "ok",
+            explanation: `Derived weighted ratio (${def.numeratorMetricKey} / ${def.denominatorMetricKey}) across ${denRes.observationCount} observation(s).`,
+            observationCount: denRes.observationCount,
+            reportingTimezones: denRes.reportingTimezones,
+            resourcesIncluded: denRes.resourcesIncluded,
+            latestCollectedAtIso: denRes.latestCollectedAtIso,
+          };
+        }
+      }
+    }
+
     return {
       canonicalMetricKey: def.canonicalKey,
       displayName: def.displayName,

@@ -56,6 +56,10 @@ import {
   getProjectSearchConsoleTelemetry,
   parseSearchConsoleReportParams,
 } from "../src/lib/reports/search-console-service";
+import {
+  getProjectControlCenterOverview,
+  getWorkspacePortfolioOverview,
+} from "../src/lib/reports/portfolio-service";
 
 export interface CloudflareWorkerEnv {
   ASSETS?: {
@@ -365,6 +369,38 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         const result = await triggerProjectIngestionAction(session, projectId, body);
         return jsonResponse(result, 200);
       }
+    }
+
+    if (pathname === "/api/portfolio" && method === "GET") {
+      const session = await getWorkerSession(request);
+      const overview = await getWorkspacePortfolioOverview(session, {
+        preset: url.searchParams.get("preset"),
+        startDate: url.searchParams.get("startDate"),
+        endDate: url.searchParams.get("endDate"),
+        compare: url.searchParams.get("compare") !== "false",
+      });
+      return jsonResponse(overview, 200);
+    }
+
+    const projectControlCenterMatch = pathname.match(
+      /^\/api\/projects\/([^/]+)\/control-center$/,
+    );
+    if (projectControlCenterMatch && method === "GET") {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectControlCenterMatch[1]);
+      const overview = await getProjectControlCenterOverview(session, projectId, {
+        environmentId: url.searchParams.get("environmentId"),
+        environmentType: url.searchParams.get("environmentType") as
+          | "PRODUCTION"
+          | "STAGING"
+          | "DEVELOPMENT"
+          | null,
+        preset: url.searchParams.get("preset"),
+        startDate: url.searchParams.get("startDate"),
+        endDate: url.searchParams.get("endDate"),
+        compare: url.searchParams.get("compare") !== "false",
+      });
+      return jsonResponse(overview, 200);
     }
 
     const projectDetailMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);

@@ -16,10 +16,20 @@ import {
   TextInput,
   WarningBanner,
 } from "@avenor/ui";
-import { Globe, Layers, ShieldCheck } from "lucide-react";
+import { Activity, Globe, Layers, RefreshCw, ShieldCheck, Table2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import {
+  MetricDefinitionTrigger,
+  type MetricProvenanceContext,
+  MetricProvenanceDrawer,
+} from "@/components/reports/metric-provenance-drawer";
+import { SourceSyncStatusPanel } from "@/components/reports/source-sync-status-panel";
+import type {
+  PortfolioDatePreset,
+  ProjectControlCenterOverviewDto,
+} from "@/lib/reports/portfolio-service";
 
 export interface ProjectDetailViewProps {
   workspaceName: string;
@@ -28,6 +38,23 @@ export interface ProjectDetailViewProps {
   canArchiveProject: boolean;
   canManageEnvironments: boolean;
   project: LogicalProjectSummary;
+  initialControlCenter?: ProjectControlCenterOverviewDto | null;
+}
+
+function formatCompactNumber(value: number | null | undefined): string | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return null;
+  }
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: value < 100 && !Number.isInteger(value) ? 2 : 0,
+  }).format(value);
+}
+
+function formatRatioPercentage(value: number | null | undefined): string | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return null;
+  }
+  return `${(value * 100).toFixed(1)}%`;
 }
 
 export function ProjectDetailView({
@@ -37,15 +64,30 @@ export function ProjectDetailView({
   canArchiveProject,
   canManageEnvironments,
   project,
+  initialControlCenter = null,
 }: ProjectDetailViewProps) {
   const router = useRouter();
 
   const defaultEnvKind =
+    initialControlCenter?.selectedEnvironmentType ??
     project.environments.find((e) => e.isDefault)?.type ??
     project.environments[0]?.type ??
     "PRODUCTION";
 
   const [selectedEnvKind, setSelectedEnvKind] = React.useState<EnvironmentType>(defaultEnvKind);
+  const [controlCenter, setControlCenter] =
+    React.useState<ProjectControlCenterOverviewDto | null>(initialControlCenter);
+  const [preset, setPreset] = React.useState<PortfolioDatePreset>(
+    initialControlCenter?.dateWindow.preset ?? "28d",
+  );
+  const [compareEnabled, _setCompareEnabled] = React.useState<boolean>(
+    initialControlCenter?.dateWindow.compareEnabled ?? true,
+  );
+  const [loadingControlCenter, setLoadingControlCenter] = React.useState(false);
+  const [showTrendTable, setShowTrendTable] = React.useState(false);
+  const [provenanceContext, setProvenanceContext] = React.useState<MetricProvenanceContext | null>(
+    null,
+  );
 
   // Edit Project Metadata state
   const [name, setName] = React.useState(project.name);
@@ -78,6 +120,71 @@ export function ProjectDetailView({
 
   const activeEnvironment =
     project.environments.find((env) => env.type === selectedEnvKind) ?? project.environments[0];
+
+  const refreshControlCenter = React.useCallback(
+    async (
+      nextEnvType: EnvironmentType,
+      nextPreset: PortfolioDatePreset,
+      nextCompare: boolean,
+    ) => {
+      setLoadingControlCenter(true);
+      try {
+        const envObj = project.environments.find((e) => e.type === nextEnvType);
+        const params = new URLSearchParams({
+          environmentType: nextEnvType,
+          preset: nextPreset,
+          compare: nextCompare ? "true" : "false",
+        });
+        if (envObj?.id) {
+          params.set("environmentId", envObj.id);
+        }
+        const response = await fetch(
+          `/api/projects/${encodeURIComponent(project.id)}/control-center?${params.toString()}`,
+          { cache: "no-store" },
+        );
+        if (response.ok) {
+          const payload = (await response.json()) as ProjectControlCenterOverviewDto;
+          if (payload?.metrics) {
+            setControlCenter(payload);
+          }
+        }
+      } catch {
+        // Non-fatal in isolated component tests
+      } finally {
+        setLoadingControlCenter(false);
+      }
+    },
+    [project.environments, project.id],
+  );
+
+  function openMetricProvenance(canonicalMetricKey: string) {
+    if (!controlCenter) return;
+    const isGsc = canonicalMetricKey.startsWith("gsc.");
+    const metricRes =
+      canonicalMetricKey === "ga4.sessions"
+        ? controlCenter.metrics.sessions
+        : canonicalMetricKey === "ga4.active_users"
+          ? controlCenter.metrics.activeUsers
+          : canonicalMetricKey === "gsc.clicks"
+            ? controlCenter.metrics.gscClicks
+            : controlCenter.metrics.gscCtr;
+
+    setProvenanceContext({
+      canonicalMetricKey,
+      externalResourceId:
+        metricRes.resourcesIncluded.length > 0
+          ? metricRes.resourcesIncluded.join(", ")
+          : `${project.name} (${selectedEnvKind})`,
+      reportingTimezone: isGsc
+        ? "America/Los_Angeles"
+        : (metricRes.reportingTimezones[0] ?? "UTC"),
+      periodStartDate: controlCenter.dateWindow.startDate,
+      periodEndDate: controlCenter.dateWindow.endDate,
+      completenessState: metricRes.completenessState,
+      lastCollectedAtIso: metricRes.latestCollectedAtIso,
+      limitations: controlCenter.overlapWarnings,
+    });
+  }
 
   async function handleSaveProject(event: React.FormEvent) {
     event.preventDefault();
@@ -180,6 +287,21 @@ export function ProjectDetailView({
     }
   }
 
+  const audienceSessionsVal = controlCenter?.metrics.sessions.value ?? null;
+  const audienceUsersVal = controlCenter?.metrics.activeUsers.value ?? null;
+  const audienceEngRateVal = controlCenter?.metrics.engagementRate.value ?? null;
+  const searchClicksVal = controlCenter?.metrics.gscClicks.value ?? null;
+  const searchImprVal = controlCenter?.metrics.gscImpressions.value ?? null;
+  const searchCtrVal = controlCenter?.metrics.gscCtr.value ?? null;
+  const searchPosVal = controlCenter?.metrics.gscAveragePosition.value ?? null;
+
+  const audienceState = controlCenter?.audienceUxState ?? "unconnected";
+  const searchState = controlCenter?.searchUxState ?? "unconnected";
+
+  const dailyTrend = controlCenter?.dailyTrend ?? [];
+  const maxDailySessions = Math.max(1, ...dailyTrend.map((d) => d.sessions ?? 0));
+  const maxDailyClicks = Math.max(1, ...dailyTrend.map((d) => d.gscClicks ?? 0));
+
   return (
     <div className="space-y-8" data-testid="project-detail-view">
       <PageHeader
@@ -195,17 +317,29 @@ export function ProjectDetailView({
           "Logical digital product grouping Production, Staging, and Development environments."
         }
         badges={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-[6px] bg-[#F0F4FA] px-2 py-0.5 font-mono text-[12px] text-[#30415D]">
               {project.slug}
             </span>
             <Badge tone={project.status === "ACTIVE" ? "success" : "neutral"}>
               {project.status}
             </Badge>
+            {controlCenter ? (
+              <Badge tone="signal" data-testid="control-center-date-window-badge">
+                {controlCenter.dateWindow.startDate} → {controlCenter.dateWindow.endDate} (
+                {controlCenter.dateWindow.dayCount}d)
+              </Badge>
+            ) : null}
           </div>
         }
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
+            {controlCenter ? (
+              <MetricDefinitionTrigger
+                canonicalMetricKey="ga4.sessions"
+                onInspect={openMetricProvenance}
+              />
+            ) : null}
             {project.primaryDomain ? (
               <span className="inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#DFE6F0] bg-[#FFFFFF] px-3.5 text-[13px] font-medium text-[#30415D]">
                 <Globe className="h-4 w-4 text-[#168E99]" aria-hidden="true" />
@@ -239,6 +373,11 @@ export function ProjectDetailView({
         }
       />
 
+      <MetricProvenanceDrawer
+        context={provenanceContext}
+        onClose={() => setProvenanceContext(null)}
+      />
+
       {project.status === "ARCHIVED" ? (
         <WarningBanner
           tone="warning"
@@ -247,15 +386,23 @@ export function ProjectDetailView({
         />
       ) : null}
 
-      {/* Environment Context Bar */}
-      <Card className="p-4 sm:p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
+      {/* Environment & Date Window Context Bar */}
+      <Card
+        className="p-4 sm:p-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+        data-testid="project-control-center-bar"
+      >
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
             <Layers className="h-4 w-4 text-[#5157D9]" aria-hidden="true" />
             <span className="text-[14px] font-semibold text-[#17243A]">
               Active Environment Lens: {activeEnvironment?.name ?? selectedEnvKind}
             </span>
             {activeEnvironment?.isDefault ? <Badge tone="indigo">Default Tier</Badge> : null}
+            {controlCenter ? (
+              <span className="text-[12px] text-[#64748B] tabular-nums">
+                • {controlCenter.freshnessLabel}
+              </span>
+            ) : null}
           </div>
           <p className="text-[13px] text-[#64748B]">
             {activeEnvironment?.primaryDomain
@@ -264,28 +411,134 @@ export function ProjectDetailView({
           </p>
         </div>
 
-        <SegmentedControl
-          ariaLabel="Switch active environment lens"
-          value={selectedEnvKind}
-          onChange={setSelectedEnvKind}
-          options={project.environments.map((env) => ({
-            value: env.type,
-            label: env.type,
-          }))}
-        />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <SegmentedControl
+            ariaLabel="Switch active environment lens"
+            value={selectedEnvKind}
+            onChange={(nextEnv) => {
+              const next = nextEnv as EnvironmentType;
+              setSelectedEnvKind(next);
+              if (controlCenter) {
+                void refreshControlCenter(next, preset, compareEnabled);
+              }
+            }}
+            options={project.environments.map((env) => ({
+              value: env.type,
+              label: env.type,
+            }))}
+          />
+
+          {controlCenter ? (
+            <>
+              <SegmentedControl
+                ariaLabel="Control center reporting date window"
+                value={preset}
+                onChange={(nextPreset) => {
+                  const p = nextPreset as PortfolioDatePreset;
+                  setPreset(p);
+                  void refreshControlCenter(selectedEnvKind, p, compareEnabled);
+                }}
+                options={[
+                  { value: "7d", label: "7d" },
+                  { value: "28d", label: "28d" },
+                  { value: "90d", label: "90d" },
+                  { value: "mtd", label: "MTD" },
+                ]}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="control-center-refresh-button"
+                disabled={loadingControlCenter}
+                onClick={() => void refreshControlCenter(selectedEnvKind, preset, compareEnabled)}
+              >
+                <RefreshCw
+                  className={`mr-1.5 h-3.5 w-3.5 ${loadingControlCenter ? "animate-spin" : ""}`}
+                />
+                <span>{loadingControlCenter ? "Refreshing..." : "Refresh"}</span>
+              </Button>
+            </>
+          ) : null}
+        </div>
       </Card>
 
-      {/* Environment Signal Atlas Readiness (4 KPI Cards in Honest Unconnected State) */}
+      {/* Mapped Resource Badges & Overlapping Property Guardrails */}
+      {controlCenter && controlCenter.mappedResources.length > 0 ? (
+        <Card className="p-4 sm:p-5 space-y-3" data-testid="project-mapped-resources-strip">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[13px] font-semibold text-[#17243A]">
+              Mapped External Resources ({controlCenter.mappedResources.length})
+            </span>
+            <Link
+              href="/connections"
+              className="text-[12px] font-semibold text-[#5157D9] hover:underline"
+            >
+              Manage mappings in Connections →
+            </Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {controlCenter.mappedResources.map((res) => {
+              const isGa4 =
+                res.providerKey === "ga4" || res.providerKey === "google_analytics_4";
+              return (
+                <Badge
+                  key={res.connectedResourceId}
+                  tone={isGa4 ? "indigo" : "signal"}
+                  data-testid={`mapped-resource-badge-${res.externalResourceId}`}
+                >
+                  {isGa4 ? "GA4" : "GSC"}: {res.displayName} ({res.externalResourceId} •{" "}
+                  {res.reportingTimezone})
+                </Badge>
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+
+      {controlCenter && controlCenter.overlapWarnings.length > 0 ? (
+        <div className="space-y-2" data-testid="project-overlap-warnings">
+          {controlCenter.overlapWarnings.map((warning) => (
+            <WarningBanner
+              key={warning}
+              tone="warning"
+              title="Multi-Property Non-Additive Guardrail"
+              description={warning}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {/* Environment Signal Atlas Readiness & Stored Canonical KPI Cards */}
       <section
         aria-label={`Environment telemetry readiness for ${selectedEnvKind}`}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        data-testid="project-control-center-kpi-grid"
       >
         <MetricCard
           title={`${selectedEnvKind} Audience`}
           definition="Sessions, users, and traffic acquisition for this environment."
-          state="unconnected"
+          state={audienceState}
+          value={audienceSessionsVal}
+          formattedValue={formatCompactNumber(audienceSessionsVal) ?? undefined}
+          unit={
+            audienceUsersVal !== null
+              ? `${formatCompactNumber(audienceUsersVal)} active users${
+                  audienceEngRateVal !== null
+                    ? ` • ${formatRatioPercentage(audienceEngRateVal)} eng.`
+                    : ""
+                }`
+              : "sessions"
+          }
+          comparisonDeltaText={
+            controlCenter?.comparisons.sessions.formattedDeltaLabel ?? undefined
+          }
           sourceLabel="GA4"
-          freshnessLabel="GA4 Data API + Realtime"
+          freshnessLabel={
+            controlCenter?.metrics.sessions.latestCollectedAtIso
+              ? `Collected ${controlCenter.metrics.sessions.latestCollectedAtIso.slice(0, 16).replace("T", " ")}`
+              : "GA4 Data API + Realtime"
+          }
           actionSlot={
             <Link
               href={`/projects/${project.id}/audience${
@@ -303,9 +556,25 @@ export function ProjectDetailView({
         <MetricCard
           title={`${selectedEnvKind} Search Visibility`}
           definition="Organic search impressions, clicks, and average ranking position."
-          state="unconnected"
+          state={searchState}
+          value={searchClicksVal}
+          formattedValue={formatCompactNumber(searchClicksVal) ?? undefined}
+          unit={
+            searchCtrVal !== null
+              ? `${formatRatioPercentage(searchCtrVal)} CTR${
+                  searchImprVal !== null ? ` • ${formatCompactNumber(searchImprVal)} impr.` : ""
+                }${searchPosVal !== null ? ` • pos ${searchPosVal.toFixed(1)}` : ""}`
+              : "clicks"
+          }
+          comparisonDeltaText={
+            controlCenter?.comparisons.gscClicks.formattedDeltaLabel ?? undefined
+          }
           sourceLabel="Search Console"
-          freshnessLabel="Search Analytics v3"
+          freshnessLabel={
+            controlCenter?.metrics.gscClicks.latestCollectedAtIso
+              ? "GSC ~48h Pacific lag"
+              : "Search Analytics v3"
+          }
           actionSlot={
             <Link
               href={`/projects/${project.id}/search${
@@ -335,6 +604,222 @@ export function ProjectDetailView({
           freshnessLabel="Map adapters in M06–M08"
         />
       </section>
+
+      {/* Historical Daily Trend & Breakdowns when Control Center data is present */}
+      {controlCenter ? (
+        <div className="space-y-6">
+          <Card className="p-5 sm:p-6 space-y-4" data-testid="project-control-center-trend-card">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-[#5157D9]" aria-hidden="true" />
+                  <h2 className="text-[17px] font-semibold text-[#17243A]">
+                    Historical Product Trajectory ({controlCenter.dateWindow.startDate} →{" "}
+                    {controlCenter.dateWindow.endDate})
+                  </h2>
+                </div>
+                <p className="mt-0.5 text-[13px] text-[#64748B]">
+                  Daily stored canonical observations for {project.name} ({selectedEnvKind}).
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/projects/${project.id}/audience${
+                    activeEnvironment
+                      ? `?environmentId=${encodeURIComponent(activeEnvironment.id)}`
+                      : ""
+                  }`}
+                  className="text-[12px] font-semibold text-[#5157D9] hover:underline"
+                >
+                  Audience Report →
+                </Link>
+                <span className="text-[#C7D2E3]">•</span>
+                <Link
+                  href={`/projects/${project.id}/search${
+                    activeEnvironment
+                      ? `?environmentId=${encodeURIComponent(activeEnvironment.id)}`
+                      : ""
+                  }`}
+                  className="text-[12px] font-semibold text-[#168E99] hover:underline"
+                >
+                  Search Report →
+                </Link>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  data-testid="project-trend-table-toggle"
+                  onClick={() => setShowTrendTable((prev) => !prev)}
+                >
+                  <Table2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{showTrendTable ? "Show Visual Chart" : "Show Accessible Table"}</span>
+                </Button>
+              </div>
+            </div>
+
+            {dailyTrend.every((d) => d.sessions === null && d.gscClicks === null) ? (
+              <div
+                className="rounded-[10px] border border-dashed border-[#C7D2E3] bg-[#F7F9FC] p-6 text-center text-[13px] text-[#64748B]"
+                data-testid="project-trend-empty"
+              >
+                No stored daily observations for {selectedEnvKind} in this window yet. Map a GA4 or
+                Search Console property in Connections and run a sync below.
+              </div>
+            ) : showTrendTable ? (
+              <div className="overflow-x-auto" data-testid="project-trend-table">
+                <table className="w-full border-collapse text-left text-[12px]">
+                  <thead>
+                    <tr className="border-b border-[#DFE6F0] text-[#64748B]">
+                      <th className="py-2 pr-4 font-semibold">Date</th>
+                      <th className="py-2 pr-4 font-semibold text-right">GA4 Sessions</th>
+                      <th className="py-2 pr-4 font-semibold text-right">Engaged Sessions</th>
+                      <th className="py-2 pr-4 font-semibold text-right">GSC Clicks</th>
+                      <th className="py-2 pr-4 font-semibold text-right">GSC Impressions</th>
+                      <th className="py-2 font-semibold text-right">Weighted CTR</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EEF2F7]">
+                    {dailyTrend.map((point) => (
+                      <tr key={point.date}>
+                        <td className="py-1.5 pr-4 font-mono text-[#17243A]">{point.date}</td>
+                        <td className="py-1.5 pr-4 text-right tabular-nums text-[#30415D]">
+                          {point.sessions !== null ? formatCompactNumber(point.sessions) : "—"}
+                        </td>
+                        <td className="py-1.5 pr-4 text-right tabular-nums text-[#30415D]">
+                          {point.engagedSessions !== null
+                            ? formatCompactNumber(point.engagedSessions)
+                            : "—"}
+                        </td>
+                        <td className="py-1.5 pr-4 text-right tabular-nums text-[#30415D]">
+                          {point.gscClicks !== null ? formatCompactNumber(point.gscClicks) : "—"}
+                        </td>
+                        <td className="py-1.5 pr-4 text-right tabular-nums text-[#30415D]">
+                          {point.gscImpressions !== null
+                            ? formatCompactNumber(point.gscImpressions)
+                            : "—"}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums text-[#30415D]">
+                          {point.gscCtr !== null ? formatRatioPercentage(point.gscCtr) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="project-trend-chart">
+                <div className="grid grid-cols-7 gap-1.5 sm:grid-cols-14 lg:grid-cols-28 items-end h-32 pt-4 px-2 rounded-[10px] border border-[#DFE6F0] bg-[#F7F9FC]">
+                  {dailyTrend.slice(-28).map((point) => {
+                    const sPct =
+                      point.sessions !== null
+                        ? Math.max(8, Math.round((point.sessions / maxDailySessions) * 100))
+                        : 0;
+                    const cPct =
+                      point.gscClicks !== null
+                        ? Math.max(8, Math.round((point.gscClicks / maxDailyClicks) * 100))
+                        : 0;
+                    return (
+                      <div
+                        key={point.date}
+                        className="flex flex-col items-center gap-1 h-full justify-end"
+                        title={`${point.date} • Sessions: ${point.sessions ?? "—"} • GSC Clicks: ${point.gscClicks ?? "—"}`}
+                      >
+                        <div className="flex items-end gap-0.5 w-full justify-center h-24">
+                          {point.sessions !== null ? (
+                            <div
+                              className="w-1.5 rounded-t bg-[#5157D9]"
+                              style={{ height: `${sPct}%` }}
+                            />
+                          ) : null}
+                          {point.gscClicks !== null ? (
+                            <div
+                              className="w-1.5 rounded-t bg-[#168E99]"
+                              style={{ height: `${cPct}%` }}
+                            />
+                          ) : null}
+                        </div>
+                        <span className="text-[9px] font-mono text-[#64748B] truncate max-w-full">
+                          {point.date.slice(8)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* Source Breakdowns Grid (Channels & Organic Queries) */}
+          {controlCenter.breakdowns.topChannels.length > 0 ||
+          controlCenter.breakdowns.topQueries.length > 0 ? (
+            <div
+              className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+              data-testid="project-control-center-breakdowns"
+            >
+              <Card className="p-5 sm:p-6 space-y-3">
+                <h3 className="text-[16px] font-semibold text-[#17243A]">
+                  Top Acquisition Channels (GA4)
+                </h3>
+                {controlCenter.breakdowns.topChannels.length === 0 ? (
+                  <p className="text-[13px] text-[#64748B]">
+                    No channel breakdown observations recorded in this window.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {controlCenter.breakdowns.topChannels.map((item) => (
+                      <div
+                        key={item.dimensionValue}
+                        className="flex items-center justify-between rounded-[8px] border border-[#DFE6F0] bg-[#F7F9FC] px-3 py-2 text-[13px]"
+                      >
+                        <span className="font-medium text-[#17243A]">{item.dimensionValue}</span>
+                        <span className="font-semibold tabular-nums text-[#30415D]">
+                          {formatCompactNumber(item.primaryMetricValue) ?? "—"} sessions
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-5 sm:p-6 space-y-3">
+                <h3 className="text-[16px] font-semibold text-[#17243A]">
+                  Top Organic Search Queries (GSC)
+                </h3>
+                {controlCenter.breakdowns.topQueries.length === 0 ? (
+                  <p className="text-[13px] text-[#64748B]">
+                    No query breakdown observations recorded in this window.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {controlCenter.breakdowns.topQueries.map((item) => (
+                      <div
+                        key={item.dimensionValue}
+                        className="flex items-center justify-between rounded-[8px] border border-[#DFE6F0] bg-[#F7F9FC] px-3 py-2 text-[13px]"
+                      >
+                        <span className="font-mono text-[12px] text-[#17243A] truncate pr-3">
+                          {item.dimensionValue}
+                        </span>
+                        <span className="font-semibold tabular-nums text-[#30415D] shrink-0">
+                          {formatCompactNumber(item.primaryMetricValue) ?? "—"} clicks (
+                          {formatCompactNumber(item.secondaryMetricValue) ?? "—"} impr.)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          ) : null}
+
+          {/* Ingestion & Watermark Sync Status Panel */}
+          <SourceSyncStatusPanel
+            projectId={project.id}
+            onSyncCompleted={() =>
+              void refreshControlCenter(selectedEnvKind, preset, compareEnabled)
+            }
+          />
+        </div>
+      ) : null}
 
       {/* 12-Column Management Grid: 6 Columns Environments / 6 Columns Product Metadata */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -372,7 +857,14 @@ export function ProjectDetailView({
                     {env.primaryDomain || "No environment-specific URL assigned"}
                   </p>
                 </div>
-                <StatusIndicator tone="neutral" label="Not connected" />
+                <StatusIndicator
+                  tone={env.mappedResourceCount > 0 ? "success" : "neutral"}
+                  label={
+                    env.mappedResourceCount > 0
+                      ? `${env.mappedResourceCount} mapped`
+                      : "Not connected"
+                  }
+                />
               </div>
             ))}
           </div>
