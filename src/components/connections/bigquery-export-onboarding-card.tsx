@@ -3,10 +3,8 @@
 import { Badge, Button, Card, WarningBanner } from "@avenor/ui";
 import { CheckCircle2, Database, ExternalLink, ShieldCheck } from "lucide-react";
 import * as React from "react";
-import {
-  BIGQUERY_BILLING_EXPORT_ONBOARDING_STEPS,
-  type ValidatedBigQueryExportSummary,
-} from "@/lib/providers/google-cloud-billing/onboarding";
+import type { ValidatedBigQueryExportSummary } from "@/lib/providers/google-cloud-billing/onboarding";
+import { BIGQUERY_BILLING_EXPORT_ONBOARDING_STEPS } from "@/lib/providers/google-cloud-billing/onboarding-steps";
 
 export interface BigQueryExportOnboardingCardProps {
   workspaceId: string;
@@ -326,9 +324,7 @@ export function BigQueryExportOnboardingCard({
             disabled={!canManageConnections || submitting}
             data-testid="bq-validate-export-submit-btn"
           >
-            {submitting
-              ? "Running Dry-Run Validation..."
-              : "Validate & Link BigQuery Export"}
+            {submitting ? "Running Dry-Run Validation..." : "Validate & Link BigQuery Export"}
           </Button>
         </div>
       </form>

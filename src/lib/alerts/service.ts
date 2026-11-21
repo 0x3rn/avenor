@@ -3,16 +3,10 @@ import { assertServerRuntime } from "@avenor/config";
 import { dbQuery, generateId } from "@avenor/database";
 import { AppError, ERROR_CODES } from "@avenor/types";
 import { z } from "zod";
+import { ALERT_CATEGORIES, type AlertCategory } from "./constants";
 import { createDefaultEmailTransport, type EmailTransportAdapter } from "./email-transport";
 
-export const ALERT_CATEGORIES = [
-  "PROVIDER_CONNECTION_FAILURE",
-  "STALE_DATA",
-  "KPI_THRESHOLD",
-  "CLOUD_SPENDING_THRESHOLD",
-] as const;
-
-export type AlertCategory = (typeof ALERT_CATEGORIES)[number];
+export { ALERT_CATEGORIES, type AlertCategory };
 export type AlertOperator = "GT" | "GTE" | "LT" | "LTE" | "STATUS_MATCH";
 export type AlertSeverity = "INFO" | "WARNING" | "CRITICAL";
 export type QuietHoursPolicy = "DEFER" | "IN_APP_ONLY" | "DISABLED";

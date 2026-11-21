@@ -3,15 +3,14 @@
 import { Badge, Button, Card, EmptyState, PageHeader, Select, WarningBanner } from "@avenor/ui";
 import { Bell, CheckCircle2, Mail, RefreshCw, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
-import {
-  ALERT_CATEGORIES,
-  type AlertCategory,
-  type AlertIncidentRecord,
-  type AlertRuleRecord,
-  type InAppNotificationRecord,
-  type NotificationDeliveryRecord,
-  type NotificationPreferenceRecord,
-  type QuietHoursPolicy,
+import { ALERT_CATEGORIES, type AlertCategory } from "@/lib/alerts/constants";
+import type {
+  AlertIncidentRecord,
+  AlertRuleRecord,
+  InAppNotificationRecord,
+  NotificationDeliveryRecord,
+  NotificationPreferenceRecord,
+  QuietHoursPolicy,
 } from "@/lib/alerts/service";
 
 export interface AlertsInboxViewProps {

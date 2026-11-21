@@ -66,6 +66,7 @@
     "test:locale-economics": "vitest run --config vitest.config.ts tests/unit/locale-and-economics.test.ts",
     "test:public-api": "vitest run --config vitest.integration.config.ts tests/integration/public-api.test.ts",
     "test:expansion": "vitest run --config vitest.config.ts tests/unit/provider-expansion.test.ts",
+    "test:ga": "vitest run --config vitest.config.ts tests/unit/ga-readiness.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",
