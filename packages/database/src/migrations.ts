@@ -58,6 +58,10 @@ export const CORE_SCHEMA_TABLES = [
   "usage_quota_reservations",
   "privacy_consents",
   "support_requests",
+  "api_tokens",
+  "outgoing_webhook_subscriptions",
+  "slo_measurements",
+  "feature_kill_switches",
 ] as const;
 
 export type CoreSchemaTable = (typeof CORE_SCHEMA_TABLES)[number];
@@ -328,6 +332,10 @@ export async function resetTestDatabaseRecords(options?: {
   const pool = getDatabasePool(options?.connectionString);
   await pool.query(`
     TRUNCATE TABLE
+      feature_kill_switches,
+      slo_measurements,
+      outgoing_webhook_subscriptions,
+      api_tokens,
       support_requests,
       privacy_consents,
       usage_quota_reservations,

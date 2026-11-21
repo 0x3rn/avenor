@@ -62,6 +62,7 @@
     "test:quotas": "vitest run --config vitest.integration.config.ts tests/integration/quotas.test.ts",
     "test:privacy": "vitest run --config vitest.integration.config.ts tests/integration/privacy.test.ts",
     "test:commerce-ux": "vitest run --config vitest.integration.config.ts tests/integration/support-and-pricing.test.ts",
+    "test:slo": "vitest run --config vitest.config.ts tests/unit/slo-and-capacity.test.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:security": "vitest run --config vitest.security.config.ts",

@@ -1177,3 +1177,70 @@ model SupportRequest {
   @@index([workspaceId, createdAt(sort: Desc)], map: "idx_support_requests_workspace")
   @@map("support_requests")
 }
+
+model ApiToken {
+  id                String    @id
+  organizationId    String    @map("organization_id")
+  workspaceId       String    @map("workspace_id")
+  createdByUserId   String?   @map("created_by_user_id")
+  name              String
+  tokenPrefix       String    @map("token_prefix")
+  tokenHash         String    @unique @map("token_hash")
+  scopes            String[]
+  allowedProjectIds String[]  @map("allowed_project_ids")
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt        DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, createdAt(sort: Desc)], map: "idx_api_tokens_workspace")
+  @@map("api_tokens")
+}
+
+model OutgoingWebhookSubscription {
+  id                     String    @id
+  organizationId         String    @map("organization_id")
+  workspaceId            String    @map("workspace_id")
+  createdByUserId        String?   @map("created_by_user_id")
+  name                   String
+  targetUrl              String    @map("target_url")
+  encryptedSigningSecret String    @map("encrypted_signing_secret")
+  subscribedEvents       String[]  @map("subscribed_events")
+  enabled                Boolean   @default(true)
+  lastDeliveredAt        DateTime? @map("last_delivered_at") @db.Timestamptz(6)
+  lastStatusCode         Int?      @map("last_status_code")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, enabled], map: "idx_outgoing_webhook_subscriptions_workspace")
+  @@map("outgoing_webhook_subscriptions")
+}
+
+model SloMeasurement {
+  id                  String   @id
+  serviceSurface      String   @map("service_surface")
+  windowStart         DateTime @map("window_start") @db.Timestamptz(6)
+  windowEnd           DateTime @map("window_end") @db.Timestamptz(6)
+  totalRequests       Int      @default(0) @map("total_requests")
+  client4xxRequests   Int      @default(0) @map("client_4xx_requests")
+  server5xxRequests   Int      @default(0) @map("server_5xx_requests")
+  p50LatencyMs        Decimal? @map("p50_latency_ms") @db.Decimal(12, 2)
+  p95LatencyMs        Decimal? @map("p95_latency_ms") @db.Decimal(12, 2)
+  p99LatencyMs        Decimal? @map("p99_latency_ms") @db.Decimal(12, 2)
+  availabilityRatio   Decimal? @map("availability_ratio") @db.Decimal(8, 6)
+  errorBudgetBurnRate Decimal? @map("error_budget_burn_rate") @db.Decimal(10, 4)
+  recordedAt          DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  @@index([serviceSurface, windowEnd(sort: Desc)], map: "idx_slo_measurements_surface_window")
+  @@map("slo_measurements")
+}
+
+model FeatureKillSwitch {
+  switchKey String   @id @map("switch_key")
+  enabled   Boolean  @default(true)
+  reason    String?
+  updatedBy String?  @map("updated_by")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("feature_kill_switches")
+}
