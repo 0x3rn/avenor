@@ -57,6 +57,10 @@ import {
   listCostSpendingThresholds,
 } from "../src/lib/billing/thresholds";
 import {
+  getProjectBackendIntelligenceReport,
+  getWorkspaceBackendIntelligenceReport,
+} from "../src/lib/reports/backend-service";
+import {
   getProjectCostIntelligenceReport,
   getWorkspaceCostIntelligenceReport,
 } from "../src/lib/reports/cost-service";
@@ -411,7 +415,9 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         return jsonResponse(data, 200);
       }
       if (method === "POST") {
-        const body = (await request.json().catch(() => ({}))) as CreateCostSpendingThresholdInput & {
+        const body = (await request
+          .json()
+          .catch(() => ({}))) as CreateCostSpendingThresholdInput & {
           action?: "create" | "evaluate";
           referenceDate?: string;
         };
@@ -483,6 +489,31 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       }
     }
 
+    if (pathname === "/api/backend" && method === "GET") {
+      const session = await getWorkerSession(request);
+      const report = await getWorkspaceBackendIntelligenceReport(session, {
+        preset: url.searchParams.get("preset"),
+        startDate: url.searchParams.get("startDate"),
+        endDate: url.searchParams.get("endDate"),
+        compare: url.searchParams.get("compare") !== "false",
+      });
+      return jsonResponse(report, 200);
+    }
+
+    const projectBackendMatch = pathname.match(/^\/api\/projects\/([^/]+)\/backend$/);
+    if (projectBackendMatch && method === "GET") {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectBackendMatch[1]);
+      const report = await getProjectBackendIntelligenceReport(session, projectId, {
+        preset: url.searchParams.get("preset"),
+        startDate: url.searchParams.get("startDate"),
+        endDate: url.searchParams.get("endDate"),
+        environmentId: url.searchParams.get("environmentId"),
+        compare: url.searchParams.get("compare") !== "false",
+      });
+      return jsonResponse(report, 200);
+    }
+
     if (pathname === "/api/portfolio" && method === "GET") {
       const session = await getWorkerSession(request);
       const overview = await getWorkspacePortfolioOverview(session, {
@@ -494,9 +525,7 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       return jsonResponse(overview, 200);
     }
 
-    const projectControlCenterMatch = pathname.match(
-      /^\/api\/projects\/([^/]+)\/control-center$/,
-    );
+    const projectControlCenterMatch = pathname.match(/^\/api\/projects\/([^/]+)\/control-center$/);
     if (projectControlCenterMatch && method === "GET") {
       const session = await getWorkerSession(request);
       const projectId = decodeURIComponent(projectControlCenterMatch[1]);
@@ -515,9 +544,7 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
       return jsonResponse(overview, 200);
     }
 
-    const projectReconciliationMatch = pathname.match(
-      /^\/api\/projects\/([^/]+)\/reconciliation$/,
-    );
+    const projectReconciliationMatch = pathname.match(/^\/api\/projects\/([^/]+)\/reconciliation$/);
     if (projectReconciliationMatch) {
       const session = await getWorkerSession(request);
       const projectId = decodeURIComponent(projectReconciliationMatch[1]);

@@ -81,6 +81,18 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
     matchPrefix: "/search",
   },
   {
+    label: "Cloud Costs",
+    href: "/costs",
+    icon: Wallet,
+    matchPrefix: "/costs",
+  },
+  {
+    label: "Backend & Databases",
+    href: "/backend",
+    icon: Database,
+    matchPrefix: "/backend",
+  },
+  {
     label: "Guided Setup",
     href: "/onboarding",
     icon: Compass,
@@ -101,8 +113,6 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
 ];
 
 const PLANNED_SIGNAL_MODULES = [
-  { label: "Cloud Costs", milestone: "M05", icon: Wallet },
-  { label: "Backend & Databases", milestone: "M06", icon: Database },
   { label: "Hosting & Reliability", milestone: "M08", icon: Server },
   { label: "Reports & Alerts", milestone: "M09", icon: FileSpreadsheet },
 ];

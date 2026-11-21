@@ -611,3 +611,29 @@ model CostThresholdEvaluation {
   @@index([workspaceId, evaluatedAt(sort: Desc)], map: "idx_cost_threshold_evals_workspace_time")
   @@map("cost_threshold_evaluations")
 }
+
+model BackendSecurityPostureObservation {
+  id                   String   @id
+  organizationId       String   @map("organization_id")
+  workspaceId          String   @map("workspace_id")
+  projectId            String?  @map("project_id")
+  environmentId        String?  @map("environment_id")
+  providerConnectionId String   @map("provider_connection_id")
+  connectedResourceId  String   @map("connected_resource_id")
+  providerKey          String   @map("provider_key")
+  indicatorKey         String   @map("indicator_key")
+  category             String
+  title                String
+  status               String
+  summary              String
+  qualificationNote    String   @map("qualification_note")
+  sanitizedEvidence    Json     @default("{}") @map("sanitized_evidence")
+  observedAt           DateTime @default(now()) @map("observed_at") @db.Timestamptz(6)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, connectedResourceId, indicatorKey], map: "uq_backend_posture_resource_indicator")
+  @@index([workspaceId, providerKey, status], map: "idx_backend_posture_workspace_provider")
+  @@index([projectId, observedAt(sort: Desc)], map: "idx_backend_posture_project_observed")
+  @@map("backend_security_posture_observations")
+}
