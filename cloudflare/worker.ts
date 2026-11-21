@@ -60,6 +60,10 @@ import {
   getProjectControlCenterOverview,
   getWorkspacePortfolioOverview,
 } from "../src/lib/reports/portfolio-service";
+import {
+  generateProjectReconciliationReport,
+  type ProviderExpectedMetricBenchmark,
+} from "../src/lib/reports/reconciliation";
 
 export interface CloudflareWorkerEnv {
   ASSETS?: {
@@ -401,6 +405,43 @@ async function handleApiRequest(request: Request, url: URL): Promise<Response> {
         compare: url.searchParams.get("compare") !== "false",
       });
       return jsonResponse(overview, 200);
+    }
+
+    const projectReconciliationMatch = pathname.match(
+      /^\/api\/projects\/([^/]+)\/reconciliation$/,
+    );
+    if (projectReconciliationMatch) {
+      const session = await getWorkerSession(request);
+      const projectId = decodeURIComponent(projectReconciliationMatch[1]);
+      if (method === "GET") {
+        const report = await generateProjectReconciliationReport(session, projectId, {
+          environmentId: url.searchParams.get("environmentId"),
+          environmentType: url.searchParams.get("environmentType") as
+            | "PRODUCTION"
+            | "STAGING"
+            | "DEVELOPMENT"
+            | null,
+          preset: url.searchParams.get("preset"),
+          startDate: url.searchParams.get("startDate"),
+          endDate: url.searchParams.get("endDate"),
+          includeToday: url.searchParams.get("includeToday") === "true",
+        });
+        return jsonResponse(report, 200);
+      }
+      if (method === "POST") {
+        const body = (await request.json().catch(() => ({}))) as {
+          environmentId?: string | null;
+          preset?: string | null;
+          startDate?: string | null;
+          endDate?: string | null;
+          includeToday?: boolean;
+          canonicalMetricKeys?: string[];
+          dimensionFilters?: Record<string, string | null | undefined>;
+          benchmarks?: ProviderExpectedMetricBenchmark[];
+        };
+        const report = await generateProjectReconciliationReport(session, projectId, body);
+        return jsonResponse(report, 200);
+      }
     }
 
     const projectDetailMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);

@@ -25,6 +25,7 @@ import {
   type MetricProvenanceContext,
   MetricProvenanceDrawer,
 } from "@/components/reports/metric-provenance-drawer";
+import { SourceReconciliationPanel } from "@/components/reports/source-reconciliation-panel";
 import { SourceSyncStatusPanel } from "@/components/reports/source-sync-status-panel";
 import type {
   PortfolioDatePreset,
@@ -817,6 +818,14 @@ export function ProjectDetailView({
             onSyncCompleted={() =>
               void refreshControlCenter(selectedEnvKind, preset, compareEnabled)
             }
+          />
+
+          {/* Date-Range Comparison, Capability Filtering & Provider Reconciliation Panel */}
+          <SourceReconciliationPanel
+            projectId={project.id}
+            environmentId={activeEnvironment?.id ?? null}
+            environmentType={selectedEnvKind}
+            preset={preset}
           />
         </div>
       ) : null}
