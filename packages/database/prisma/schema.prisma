@@ -517,3 +517,97 @@ model MetricObservationRevision {
   @@index([workspaceId, recordedAt(sort: Desc)], map: "idx_metric_observation_revisions_workspace_id")
   @@map("metric_observation_revisions")
 }
+
+model BillingCostLedgerEntry {
+  id                     String    @id
+  organizationId         String    @map("organization_id")
+  workspaceId            String    @map("workspace_id")
+  projectId              String?   @map("project_id")
+  environmentId          String?   @map("environment_id")
+  providerConnectionId   String    @map("provider_connection_id")
+  connectedResourceId    String    @map("connected_resource_id")
+  billingAccountId       String    @map("billing_account_id")
+  gcpProjectId           String    @map("gcp_project_id")
+  usageDate              String    @map("usage_date")
+  invoiceMonth           String    @map("invoice_month")
+  serviceId              String    @map("service_id")
+  serviceDescription     String    @map("service_description")
+  skuId                  String    @map("sku_id")
+  skuDescription         String    @map("sku_description")
+  region                 String    @default("global")
+  costType               String    @default("regular") @map("cost_type")
+  currency               String
+  currencyConversionRate Decimal   @default(1.0) @map("currency_conversion_rate") @db.Decimal(20, 8)
+  grossCost              Decimal   @map("gross_cost") @db.Decimal(20, 6)
+  creditsAmount          Decimal   @default(0) @map("credits_amount") @db.Decimal(20, 6)
+  netCost                Decimal   @map("net_cost") @db.Decimal(20, 6)
+  creditBreakdown        Json      @default("[]") @map("credit_breakdown")
+  usageAmount            Decimal?  @map("usage_amount") @db.Decimal(20, 6)
+  usageUnit              String?   @map("usage_unit")
+  completenessState      String    @default("PROVISIONAL") @map("completeness_state")
+  exportTime             DateTime? @map("export_time") @db.Timestamptz(6)
+  queryBytesProcessed    BigInt    @default(0) @map("query_bytes_processed")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, connectedResourceId, billingAccountId, gcpProjectId, usageDate, invoiceMonth, serviceId, skuId, region, costType, currency], map: "uq_billing_cost_ledger_identity")
+  @@index([workspaceId, usageDate(sort: Desc)], map: "idx_billing_ledger_workspace_date")
+  @@index([projectId, usageDate(sort: Desc)], map: "idx_billing_ledger_project_date")
+  @@index([workspaceId, invoiceMonth, currency], map: "idx_billing_ledger_invoice_month")
+  @@map("billing_cost_ledger_entries")
+}
+
+model CostSpendingThreshold {
+  id                   String                    @id
+  organizationId       String                    @map("organization_id")
+  workspaceId          String                    @map("workspace_id")
+  projectId            String?                   @map("project_id")
+  name                 String
+  scopeType            String                    @default("PROJECT") @map("scope_type")
+  gcpProjectId         String?                   @map("gcp_project_id")
+  serviceDescription   String?                   @map("service_description")
+  metricBasis          String                    @default("NET_COST") @map("metric_basis")
+  periodType           String                    @default("MONTHLY") @map("period_type")
+  currency             String
+  warningAmount        Decimal?                  @map("warning_amount") @db.Decimal(20, 6)
+  criticalAmount       Decimal                   @map("critical_amount") @db.Decimal(20, 6)
+  evaluationFrequency  String                    @default("EVERY_SYNC") @map("evaluation_frequency")
+  notificationChannels String[]                  @default(["IN_APP"]) @map("notification_channels")
+  isEnabled            Boolean                   @default(true) @map("is_enabled")
+  lastEvaluatedAt      DateTime?                 @map("last_evaluated_at") @db.Timestamptz(6)
+  lastStatus           String                    @default("OK") @map("last_status")
+  createdByUserId      String?                   @map("created_by_user_id")
+  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  evaluations          CostThresholdEvaluation[]
+
+  @@index([workspaceId, isEnabled], map: "idx_cost_thresholds_workspace_enabled")
+  @@index([projectId], map: "idx_cost_thresholds_project_id")
+  @@map("cost_spending_thresholds")
+}
+
+model CostThresholdEvaluation {
+  id              String                @id
+  thresholdId     String                @map("threshold_id")
+  organizationId  String                @map("organization_id")
+  workspaceId     String                @map("workspace_id")
+  projectId       String?               @map("project_id")
+  periodKey       String                @map("period_key")
+  periodStartDate String                @map("period_start_date")
+  periodEndDate   String                @map("period_end_date")
+  severity        String
+  observedAmount  Decimal?              @map("observed_amount") @db.Decimal(20, 6)
+  thresholdAmount Decimal               @map("threshold_amount") @db.Decimal(20, 6)
+  currency        String
+  dedupeKey       String                @map("dedupe_key")
+  alertTriggered  Boolean               @default(false) @map("alert_triggered")
+  summary         String
+  details         Json                  @default("{}")
+  evaluatedAt     DateTime              @default(now()) @map("evaluated_at") @db.Timestamptz(6)
+  threshold       CostSpendingThreshold @relation(fields: [thresholdId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, dedupeKey], map: "uq_cost_threshold_eval_dedupe")
+  @@index([thresholdId, evaluatedAt(sort: Desc)], map: "idx_cost_threshold_evals_threshold_time")
+  @@index([workspaceId, evaluatedAt(sort: Desc)], map: "idx_cost_threshold_evals_workspace_time")
+  @@map("cost_threshold_evaluations")
+}

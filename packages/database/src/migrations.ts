@@ -27,6 +27,9 @@ export const CORE_SCHEMA_TABLES = [
   "ingestion_watermarks",
   "metric_observations",
   "metric_observation_revisions",
+  "billing_cost_ledger_entries",
+  "cost_spending_thresholds",
+  "cost_threshold_evaluations",
 ] as const;
 
 export type CoreSchemaTable = (typeof CORE_SCHEMA_TABLES)[number];
@@ -297,6 +300,9 @@ export async function resetTestDatabaseRecords(options?: {
   const pool = getDatabasePool(options?.connectionString);
   await pool.query(`
     TRUNCATE TABLE
+      cost_threshold_evaluations,
+      cost_spending_thresholds,
+      billing_cost_ledger_entries,
       metric_observation_revisions,
       metric_observations,
       ingestion_watermarks,
@@ -320,10 +326,12 @@ export async function resetTestDatabaseRecords(options?: {
     RESTART IDENTITY CASCADE;
   `);
 
-  const m04Migration = loadMigrationFiles().find((m) =>
-    m.id.startsWith("0003_milestone_04_metrics_pipeline"),
-  );
-  if (m04Migration) {
-    await pool.query(m04Migration.sql);
+  for (const mig of loadMigrationFiles()) {
+    if (
+      mig.id.startsWith("0003_milestone_04_metrics_pipeline") ||
+      mig.id.startsWith("0004_milestone_05_cloud_cost_intelligence")
+    ) {
+      await pool.query(mig.sql);
+    }
   }
 }
